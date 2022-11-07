@@ -1,25 +1,24 @@
 import { DataValue, SendAs } from "./Bfetch.js";
-type Maybe<T> = import("true-myth/maybe").Maybe<T>;
 
-const toFormData = (data: Maybe<Map<string, DataValue>>) => {
-  if (data.isNothing || data.value.size === 0) return new FormData();
+const toFormData = (data: Map<string, DataValue> | null) => {
+  if (!data || data.size === 0) return new FormData();
   let FD = new FormData();
-  for (const [key, value] of data.value) {
+  for (const [key, value] of data) {
     FD.append(key, value);
   }
   return FD;
 };
 
-const toJson = (data: Maybe<Map<string, DataValue>>): string => {
-  if (data.isNothing || data.value.size === 0) return "{}";
-  const plain = Object.fromEntries(data.value.entries());
+const toJson = (data: Map<string, DataValue> | null): string => {
+  if (!data || data.size === 0) return "{}";
+  const plain = Object.fromEntries(data.entries());
   return JSON.stringify(plain);
 };
 
-const encodeUrl = (url: string, data: Maybe<Map<string, DataValue>>) => {
+const encodeUrl = (url: string, data: Map<string, DataValue> | null) => {
   const urlQuery = new URL(url);
-  if (data.isNothing || data.value.size === 0) return urlQuery;
-  for (const [key, value] of data.value) {
+  if (!data || data.size === 0) return urlQuery;
+  for (const [key, value] of data) {
     urlQuery.searchParams.set(key, value.toString());
   }
   return urlQuery;
@@ -32,14 +31,13 @@ interface InitPost {
 }
 
 export const urlInitPost = (
-  method: "POST",
   url: string,
-  headers: Maybe<Headers>,
-  sendAs: Maybe<SendAs>,
-  data: Maybe<Map<string, DataValue>>
+  headers: Headers | null,
+  sendAs: SendAs | null,
+  data: Map<string, DataValue> | null
 ): [URL, InitPost] => {
-  const newHeaders = headers.unwrapOr(new Headers());
-  const newSendAs = sendAs.unwrapOr<SendAs>("json");
+  const newHeaders = headers || new Headers();
+  const newSendAs = sendAs || "json";
   let body;
   if (newSendAs === "json") {
     newHeaders.set("Content-Type", "application/json");
@@ -48,9 +46,9 @@ export const urlInitPost = (
     body = toFormData(data);
   } else if (newSendAs === "encoded") {
     newHeaders.set("Content-Type", "application/x-www-form-urlencoded");
-    body = new URL("").searchParams;
+    body = encodeUrl(url, data).searchParams;
   }
-  return [new URL(url), { method, body, headers: newHeaders }];
+  return [new URL(url), { method: "POST", body, headers: newHeaders }];
 };
 
 interface initGet {
@@ -59,12 +57,11 @@ interface initGet {
 }
 
 export const urlInitGet = (
-  method: "GET",
   url: string,
-  headers: Maybe<Headers>,
-  data: Maybe<Map<string, DataValue>>
+  headers: Headers | null,
+  data: Map<string, DataValue> | null
 ): [URL, initGet] => {
-  const newHeaders = headers.unwrapOr(new Headers());
+  const newHeaders = headers || new Headers();
   const newUrl = encodeUrl(url, data);
-  return [newUrl, { method, headers: newHeaders }];
+  return [newUrl, { method: "GET", headers: newHeaders }];
 };

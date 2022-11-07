@@ -1,22 +1,13 @@
-import { Bhtml, TypeListener } from "../util/Bhtml/Bhtml.js";
-
-const buttonClassName = "cursor-pointer py-1 px-3 rounded-sm";
+import { Builder, InputValues } from "../util/Bhtml2/index.js";
 
 // Layout ----------------------------
-export const headerB = () => new Bhtml().tag("header");
 
-export const asideB = () => new Bhtml().tag("aside");
-
-export const mainB = () =>
-  new Bhtml().tag("main").hotspot("main").className("h-full ");
-
-export const modalSectionB = (headerId: string) =>
-  new Bhtml()
+export const modalSectionB = (b: Builder, headerId: string) =>
+  b
     .tag("section")
     .className("flex flex-col space-y-3 py-3 justify-center items-center")
-    .attributes({ "aria-lablledby": headerId });
+    .attribute("aria-lablledby", headerId);
 
-export const navB = () => new Bhtml().tag("nav");
 // -----------------------------------
 
 interface BaseAttributes {
@@ -38,11 +29,15 @@ interface TextInputAttributes extends BaseAttributes {
   max?: string;
 }
 
-export const lableB = (text: string, inputId?: string) =>
-  new Bhtml().tag("lable").childNode(text).attributes({ for: inputId });
+interface LableAttributes extends BaseAttributes {
+  for?: string;
+}
 
-export const textInputB = (props: TextInputAttributes) =>
-  new Bhtml<HTMLInputElement>()
+export const labelB = (b: Builder, text: string, attr: LableAttributes) =>
+  b.tag("label").childNode(text).attributes(attr);
+
+export const textInputB = (b: Builder, props: TextInputAttributes) =>
+  b
     .tag("input")
     .className(
       [
@@ -58,36 +53,48 @@ export const textInputB = (props: TextInputAttributes) =>
     )
     .attributes(props);
 
+type LableInputAttributes = TextInputAttributes & LableAttributes;
+
 export const lableTextInputB = (
-  inputAttributes: TextInputAttributes,
+  b: Builder,
+  attr: LableInputAttributes,
   labelText: string,
-  typeListeners?: Record<string, TypeListener>
+  events?: InputValues["events"]
 ) => {
-  const input = textInputB(inputAttributes).className("mt-2");
-  return lableB(labelText)
-    .childNodes({ input })
-    .events(typeListeners)
+  const input = textInputB(b, attr).className("mt-2").build<HTMLInputElement>();
+  return labelB(b, labelText, { for: attr.for })
+    .childNode(input, "input")
+    .events(events)
     .className("flex flex-col");
 };
 
-export const formB = () =>
-  new Bhtml().tag("form").className("flex flex-col space-y-3");
+export const formB = (b: Builder) =>
+  b.tag("form").className("flex flex-col space-y-3");
 // ---------------------------------
 
 // Text ----------------------------
-export const h1B = (text: string, attr?: BaseAttributes) =>
-  new Bhtml().tag("h1").childNode(text).attributes(attr).className("text-2xl");
+export const h1B = (b: Builder, text: string, attr?: BaseAttributes) =>
+  b.tag("h1").childNode(text).attributes(attr).className("text-2xl");
 
-export const h2B = (text: string, attr?: BaseAttributes) =>
-  new Bhtml().tag("h2").childNode(text).attributes(attr).className("text-xl");
+export const h2B = (b: Builder, text: string, attr?: BaseAttributes) =>
+  b.tag("h2").childNode(text).attributes(attr).className("text-xl");
 
 // Interactive ---------------------
-export const submitInputB = (text: string) =>
-  new Bhtml().tag("input").className(buttonClassName).attributes({
-    type: "submit",
-    value: text,
-  });
+const buttonClassName = "cursor-pointer py-1 px-3 rounded-sm";
+export const submitInputB = (b: Builder, text: string, attr?: BaseAttributes) =>
+  b
+    .tag("input")
+    .className(buttonClassName)
+    .attributes({
+      type: "submit",
+      value: text,
+      ...attr,
+    });
 
-export const buttonB = (text: string) =>
-  new Bhtml().tag("button").className(buttonClassName).childNode(text);
+export const buttonB = (b: Builder, text: string, attr?: BaseAttributes) =>
+  b
+    .tag("button")
+    .childNode(text, "text")
+    .className(buttonClassName)
+    .attributes(attr);
 // ---------------------------------
