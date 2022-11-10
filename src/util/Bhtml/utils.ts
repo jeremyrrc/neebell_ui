@@ -1,9 +1,13 @@
 import {
+  Built,
   Nothing,
   BuilderProps,
   PotentialFutureChildNode,
   FutureChildNode,
 } from "./index.js";
+
+export const isNothing = (v: any): v is Nothing =>
+  v === null || v === undefined;
 
 // String
 export const appendStringToString = (
@@ -21,7 +25,7 @@ export const removeValuesInArray = <T>(
   v: Array<T> | Nothing
 ): Array<T> | null => {
   if (isNothing(v) || v.length === 0 || prop === null) return prop;
-  const filteredV = prop.filter((t) => v.includes(t));
+  const filteredV = prop.filter((t) => !v.includes(t));
   return filteredV.length !== 0 ? filteredV : null;
 };
 
@@ -61,64 +65,55 @@ export const setRecordValueToMap = <V>(
   return prop ? prop.set(key, v) : new Map([[key, v]]);
 };
 
+// This is where any conversion of the user input needs to happen.
+// TODO: Maybe a function that returns a FutureChildNode could be executed here in
+// the future.
 export const narrowToFutureChildNode = (
   v: NonNullable<PotentialFutureChildNode>
 ): FutureChildNode => {
-  if (typeof v === "number") {
-    v = v.toString();
-    return v;
-  }
+  if (typeof v === "number") return v.toString();
   return v;
 };
 
-export const isNothing = (v: any): v is Nothing =>
-  v === null || v === undefined;
+// If the key is undefined then I'm not going to keep it as a Built<HTMLElement>
+// But instead store it as a HTMLElement. I still keep the HTMLElement so that
+// the Built.childElems... methods can still modify all the HTMLElement children
+// of the Built.
+export const unwrapIfKeyUndefined = (
+  key: string | undefined,
+  v: FutureChildNode
+): string | HTMLElement | [string, string | Built<HTMLElement>] => {
+  if (key === undefined) {
+    return typeof v === "object" ? v.unwrap() : v;
+  }
+  return [key, v];
+};
 
-export const produceNode = (v: FutureChildNode): Node => {
+// Unwrap the Built or convert string to Text in order to a Node that can be
+// appended.
+export const produceNode = (
+  v: string | HTMLElement | Built<HTMLElement>
+): Text | HTMLElement => {
+  if (v instanceof HTMLElement) return v;
   if (typeof v === "string") return document.createTextNode(v);
   return v.unwrap();
 };
 
-export const addChildNode = (elem: Element, v: FutureChildNode): Node => {
+// Append the produced Node from produceNode. Return the Node to be used in Built.
+export const appendNode = (
+  elem: Element,
+  v: string | HTMLElement | Built<HTMLElement>
+): Text | HTMLElement => {
   const node = produceNode(v);
   elem.appendChild(node);
   return node;
 };
 
-export const addChildNodes = (
-  elem: Element,
-  futureNodes: Array<[string | undefined, FutureChildNode]>
-) => {
-  for (const [_k, v] of futureNodes) {
-    addChildNode(elem, v);
-  }
-};
-
-export const applyMethods = {
-  id: (elem: Element, p: NonNullable<BuilderProps["id"]>) => (elem.id = p),
-
-  className: (elem: Element, p: any) => {
-    for (const c of p) {
-      elem.classList.add(c);
-    }
-  },
-
-  attributes: (elem: Element, p: NonNullable<BuilderProps["attributes"]>) => {
-    for (const [name, value] of p) {
-      elem.setAttribute(name, value);
-    }
-  },
-
-  events: (elem: Element, p: NonNullable<BuilderProps["events"]>) => {
-    for (const [_k, v] of p) {
-      const [type, listener] = v;
-      elem.addEventListener(type, listener);
-    }
-  },
-
-  futureNodes: addChildNodes,
-};
-
+// Add events to the HTMLElement with AbortController.signal.
+// And return the Abort controllers stored in a Map with the keys
+// that were given (or number that was produced for events that didn't get a name)
+// (This happened in Builder.event | Builder.events)
+// as keys so that events can be removed in Built.removeEvent.
 export const addEventsSignals = (
   elem: Element,
   p: NonNullable<BuilderProps["events"]>
@@ -135,11 +130,30 @@ export const addEventsSignals = (
   return abortControllers;
 };
 
+const applyPropsMethods = {
+  id: (elem: Element, p: NonNullable<BuilderProps["id"]>) => (elem.id = p),
+
+  className: (elem: Element, p: any) => {
+    for (const c of p) {
+      elem.classList.add(c);
+    }
+  },
+
+  attributes: (elem: Element, p: NonNullable<BuilderProps["attributes"]>) => {
+    for (const [name, value] of p) {
+      elem.setAttribute(name, value);
+    }
+  },
+};
+
+// This is where any properties need to be added to the freshly made HTMLElement
+// and the result of adding them dosen't need to be stored.
+// (Unlike addEventsSignals above that needs to get the AbortControllers)
 export const applyProps = (elem: Element, props: Partial<BuilderProps>) => {
   for (const k in props) {
     const value = props[k];
     if (value === null) continue;
-    applyMethods[k](elem, value);
+    applyPropsMethods[k](elem, value);
   }
   return elem;
 };

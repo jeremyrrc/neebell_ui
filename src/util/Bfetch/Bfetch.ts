@@ -4,6 +4,7 @@ export type Nothing = null | undefined;
 
 type InputValue = HTMLInputElement | string | number | Blob;
 type Input =
+  | Event
   | HTMLFormElement
   | FormData
   | Map<string, InputValue>
@@ -72,7 +73,6 @@ type NetworkErrorHandlers = Map<string, ForwardHandler<unknown>>;
 type ServerErrorHanlders = Map<string, ForwardHandler<Response>>;
 
 interface Props {
-  baseUrl: string;
   url: string | null;
   method: Methods | null;
   sendAs: SendAs | null;
@@ -85,11 +85,14 @@ interface Props {
 }
 
 export class Bfetch {
+  _baseUrl: string;
+  _keep: Array<keyof Props> | null;
   props: Props;
 
   constructor(baseUrl: string) {
+    this._baseUrl = baseUrl;
+    this._keep = null;
     this.props = {
-      baseUrl,
       url: null,
       method: null,
       sendAs: null,
@@ -105,7 +108,14 @@ export class Bfetch {
   #inputToParams(v: Input | Nothing): Map<string, DataValue> | null {
     if (v === null || v === undefined) return null;
     let params;
-    if (v instanceof HTMLFormElement) {
+    if (v instanceof Event) {
+      const input = v.target;
+      if (!(input instanceof HTMLInputElement)) return null;
+      const form = input.form;
+      if (!form) return null;
+      params = new FormData(form);
+      params = new Map(params.entries());
+    } else if (v instanceof HTMLFormElement) {
       params = new FormData(v);
       params = new Map(params.entries());
     } else if (v instanceof FormData) {
@@ -129,7 +139,7 @@ export class Bfetch {
 
   baseUrl(v: string | Nothing) {
     if (!v) return this;
-    this.props.baseUrl = v;
+    this._baseUrl = v;
     return this;
   }
 
@@ -228,19 +238,36 @@ export class Bfetch {
     return this;
   }
 
-  clear(propKey?: string) {
-    if (!propKey) {
-      for (const k in this.props) this.props[k] = null;
+  keep(...keepKeys: Array<keyof Props>) {
+    this._keep = this._keep ? [...this._keep, ...keepKeys] : keepKeys;
+    return this;
+  }
+
+  remove(...removeKeys: Array<keyof Props>) {
+    if (removeKeys.length !== 0) return this;
+    this._keep =
+      this._keep?.filter((propKey) => !removeKeys.includes(propKey)) || null;
+    return this;
+  }
+
+  clear(...propKeys: Array<keyof Props>) {
+    if (propKeys.length === 0) {
+      for (const k in this.props) {
+        if (this._keep?.includes(k as keyof Props)) continue;
+        this.props[k] = null;
+      }
       return this;
     }
-    this.props[propKey] = null;
+    for (const propKey of propKeys) {
+      if (this._keep?.includes(propKey as keyof Props)) continue;
+      this.props[propKey] = null;
+    }
     return this;
   }
 
   async send(): Promise<Response> {
     this.props.method = this.props.method || "GET";
     const {
-      baseUrl,
       url,
       method,
       params,
@@ -251,7 +278,7 @@ export class Bfetch {
       onError,
       catchNetworkError,
     } = this.props;
-    const fullUrl = baseUrl + url;
+    const fullUrl = this._baseUrl + (url || "");
     const [finalUrl, init] =
       method === "GET"
         ? urlInitGet(fullUrl, null, params)
@@ -261,6 +288,7 @@ export class Bfetch {
       const response = await fetch(finalUrl, init);
       if (response.status >= 200 && response.status <= 299) {
         if (onSuccess) onSuccess(response, this);
+        this.clear();
         return response;
       }
 
@@ -283,13 +311,16 @@ export class Bfetch {
           forward = await forwarder(serverErrorCatchers, response, this);
           if (forward && onError) await onError(serverError, this);
         }
+        this.clear();
         return Promise.reject(serverError);
       }
 
       if (onError) onError(serverError, this);
+      this.clear();
       return Promise.reject(serverError);
     } catch (error) {
-      let message =
+      console.error(error);
+      const message =
         "message" in error ? error.message : "Could not connect to server.";
       const networkError: NetworkError = {
         type: "network",
@@ -303,6 +334,7 @@ export class Bfetch {
         : null;
       forward = await forwarder(networkErrorCatchers, error, this);
       if (forward && onError) await onError(networkError, this);
+      this.clear();
       return Promise.reject(networkError);
     }
   }

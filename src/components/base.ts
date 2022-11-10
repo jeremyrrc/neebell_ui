@@ -1,4 +1,4 @@
-import { Builder, InputValues } from "../util/Bhtml2/index.js";
+import { Builder } from "../util/Bhtml/index.js";
 
 // Layout ----------------------------
 
@@ -58,13 +58,11 @@ type LableInputAttributes = TextInputAttributes & LableAttributes;
 export const lableTextInputB = (
   b: Builder,
   attr: LableInputAttributes,
-  labelText: string,
-  events?: InputValues["events"]
+  labelText: string
 ) => {
   const input = textInputB(b, attr).className("mt-2").build<HTMLInputElement>();
   return labelB(b, labelText, { for: attr.for })
     .childNode(input, "input")
-    .events(events)
     .className("flex flex-col");
 };
 

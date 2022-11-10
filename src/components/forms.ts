@@ -1,7 +1,6 @@
-import { Builder } from "../util/Bhtml2/index.js";
-import { Bfetch } from "../util/Bfetch/Bfetch.js";
+import { Builder } from "../util/Bhtml/index.js";
 import { Page } from "../main.js";
-import { namePattern, dark, accent } from "../main.js";
+import { namePattern, accent } from "../main.js";
 import { lableTextInputB, submitInputB, formB } from "./base.js";
 
 const lableInputNamePassword = (b: Builder, idPrefix: string) => {
@@ -35,7 +34,7 @@ const lableInputNamePassword = (b: Builder, idPrefix: string) => {
   return [name, pass];
 };
 
-export const createUserForm = (b: Builder, f: Bfetch) => {
+export const createAccForm = (b: Builder, p: Page) => {
   const idPrefix = "createForm";
   const [nameLableInput, passwordLableInput] = lableInputNamePassword(
     b,
@@ -52,79 +51,114 @@ export const createUserForm = (b: Builder, f: Bfetch) => {
       id: idPrefix + "ConfirmPassword",
       for: idPrefix + "ConfirmPassword",
     },
-    "Confirm password:",
-    {
-      confirmPass: [
-        "input",
-        (e: Event) => {
-          const confirmPassInput = e.target as HTMLInputElement | null;
-          if (!confirmPassInput) return;
-          const form = confirmPassInput.form;
-          if (!form) return;
-          const passInput = form.elements.namedItem(
-            "password"
-          ) as HTMLInputElement | null;
-          if (!passInput) return;
+    "Confirm password:"
+  )
+    .event("input", (e) => {
+      const confirmPassInput = e.target as HTMLInputElement | null;
+      if (!confirmPassInput) return;
+      const form = confirmPassInput.form;
+      if (!form) return;
+      const passInput = form.elements.namedItem(
+        "password"
+      ) as HTMLInputElement | null;
+      if (!passInput) return;
 
-          confirmPassInput.value !== passInput.value
-            ? confirmPassInput.setCustomValidity("Passwords don't match.")
-            : confirmPassInput.setCustomValidity("");
-        },
-      ],
-    }
-  );
+      confirmPassInput.value !== passInput.value
+        ? confirmPassInput.setCustomValidity("Passwords don't match.")
+        : confirmPassInput.setCustomValidity("");
+    })
+    .build();
 
-  const submitListener = (e: Event) => {
-    e.preventDefault();
-    const submitInput = e.target as HTMLInputElement | null;
-    if (!submitInput) return;
-    const form = submitInput.form;
-    if (!form) return;
-    f.clear("url")
-      .clear("params")
-      .clear("onSuccess")
-      .url("/user/create")
-      .method("POST")
-      .sendAs("encoded")
-      .params(form)
-      .onSuccess(async (r: Response) => {
-        const text = await r.text();
-        console.log(text);
-      })
-      .send();
-  };
-
-  const submitInput = submitInputB(b, "submit")
-    .className(dark)
-    .event("click", submitListener);
-
-  return formB(b)
-    .className("max-w-lg")
-    .childNode(nameLableInput)
-    .childNode(passwordLableInput)
-    .childNode(confirmPassLableInput.build())
-    .childNode(submitInput.build());
-};
-
-export const signInForm = (b: Builder, page: Page) => {
-  const [nameLableInput, passwordLableInput] = lableInputNamePassword(
-    b,
-    "signInForm"
-  );
-
-  const submitListener = (e: Event) => {
-    e.preventDefault();
-    console.log(e.target);
-  };
-
-  const submitInput = submitInputB(b, "Sign In")
-    .className(accent)
-    .event("click", submitListener)
+  const submitInput = submitInputB(b, "Create Account")
+    .event("click", (e) => {
+      e.preventDefault();
+      p.bfetch
+        .url("/user/create")
+        .method("POST")
+        .sendAs("encoded")
+        .params(e)
+        .onSuccess(() => {
+          p.content(b, "sign in");
+        })
+        .send();
+    })
     .build();
 
   return formB(b)
     .className("max-w-lg")
     .childNode(nameLableInput)
     .childNode(passwordLableInput)
-    .childNode(submitInput);
+    .childNode(confirmPassLableInput)
+    .childNode(submitInput.className(accent));
+};
+
+export const signInForm = (b: Builder, p: Page) => {
+  const [nameLableInput, passwordLableInput] = lableInputNamePassword(
+    b,
+    "signInForm"
+  );
+
+  const submitInput = submitInputB(b, "Sign In")
+    .event("click", (e) => {
+      e.preventDefault();
+      p.bfetch
+        .url("/user/sign-in")
+        .method("POST")
+        .sendAs("encoded")
+        .params(e)
+        .onSuccess(async (r) => {
+          const user = await r.text();
+          p.sideMenu(b, "signed in", user);
+          p.content(b, "blank");
+          console.log(user);
+        })
+        .send();
+    })
+    .build();
+
+  return formB(b)
+    .className("max-w-lg")
+    .childNode(nameLableInput)
+    .childNode(passwordLableInput)
+    .childNode(submitInput.className(accent));
+};
+
+export const createForumForm = (b: Builder, p: Page) => {
+  const idPrefix = "createForumForm";
+  const nameLableInput = lableTextInputB(
+    b,
+    {
+      type: "text",
+      title: "Enter a forum name with no spaces. Only dashes and numbers.",
+      placeholder: "cool-topic23",
+      name: "name",
+      pattern: namePattern,
+      minLength: "1",
+      id: idPrefix + "Name",
+      for: idPrefix + "Name",
+    },
+    "Name:"
+  ).build();
+
+  const submitInput = submitInputB(b, "Create Forum")
+    .event("click", (e) => {
+      e.preventDefault();
+      p.bfetch
+        .url("/forum/create")
+        .method("POST")
+        .sendAs("encoded")
+        .params(e)
+        .onSuccess(async (r) => {
+          const user = await r.text();
+          p.sideMenu(b, "signed in", user);
+          p.content(b, "blank");
+        })
+        .send();
+    })
+    .build();
+
+  return formB(b)
+    .className("max-w-lg")
+    .childNode(nameLableInput)
+    .childNode(submitInput.className(accent));
 };

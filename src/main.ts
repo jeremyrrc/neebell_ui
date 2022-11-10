@@ -1,18 +1,19 @@
-// import { nav, isPage } from "./pages.js";
 import { Built, Builder } from "./util/Bhtml/index.js";
 import { Bfetch, Error } from "./util/Bfetch/Bfetch.js";
-import { mainErrorBlt, signInContentBlt, buttonB } from "./components/index.js";
+import {
+  mainErrorBlt,
+  signInContentBlt,
+  createAccContentBlt,
+  createForumContentBlt,
+  signedOutSideMenuBlt,
+  signedInSideMenuBlt,
+} from "./components/index.js";
 export const dark = "bg-neutral-700 text-neutral-200";
 export const mid = "bg-neutral-400 text-neutral-900";
 export const light = "bg-neutral-300 text-neutral-900";
 export const accent = "bg-orange-500 text-neutral-900";
 
 export const namePattern = "[A-Za-z0-9_-]+";
-
-type MainComponents = Record<
-  "header" | "sideMenu" | "main" | "mainError",
-  Built<HTMLElement>
->;
 
 const showError = (errorBlt: Built<HTMLElement>, mess: string) => {
   errorBlt.modify("errorMessage", (message) => {
@@ -21,7 +22,7 @@ const showError = (errorBlt: Built<HTMLElement>, mess: string) => {
     }
     message.textContent = mess;
   });
-  if (errorBlt.elem instanceof HTMLDialogElement) errorBlt.elem.showModal();
+  errorBlt.elem.classList.remove("hidden");
 };
 
 const handleErrorFactory = (errorBlt: Built<HTMLElement>) => {
@@ -30,44 +31,80 @@ const handleErrorFactory = (errorBlt: Built<HTMLElement>) => {
   };
 };
 
+type MainComponents = Record<
+  "header" | "sideBar" | "main" | "mainError",
+  Built<HTMLElement>
+>;
+
+type WhatContent = "blank" | "create account" | "sign in" | "create forum";
+type WhatSideMenu = "signed in" | "signed out";
+
 export class Page {
   header: Built<HTMLElement>;
-  sideMenu: Built<HTMLElement>;
+  sideBar: Built<HTMLElement>;
   main: Built<HTMLElement>;
   mainError: Built<HTMLElement>;
+  b: Builder;
   bfetch: Bfetch;
 
   constructor(
-    { header, sideMenu, main, mainError }: MainComponents,
-    bfetch: Bfetch
+    b: Builder,
+    { header, sideBar, main, mainError }: MainComponents
   ) {
+    this.b = b;
     this.header = header;
-    this.sideMenu = sideMenu;
+    this.sideBar = sideBar;
     this.main = main;
     this.mainError = mainError;
-    bfetch.onError(handleErrorFactory(mainError));
-    this.bfetch = bfetch;
+    this.bfetch = new Bfetch("http://127.0.0.1:8000")
+      .onError(handleErrorFactory(mainError))
+      .keep("onError");
   }
 
-  signIn(b: Builder) {
-    const createAccButton = buttonB(b, "Create Account").className(mid).build();
-    const signInButton = buttonB(b, "Sign In").className(mid).build();
-    this.sideMenu.childNode(createAccButton).childNode(signInButton);
-    this.main.replace("content", signInContentBlt(b, this));
+  sideMenu(what: WhatSideMenu, h2?: string) {
+    switch (what) {
+      case "signed out":
+        this.sideBar.replace("h2", "");
+        this.sideBar.replace("sideMenu", signedOutSideMenuBlt(this.b, this));
+        break;
+      case "signed in":
+        this.sideBar.replace("h2", this.b.tag("h2").childNode(h2).build());
+        this.sideBar.replace("sideMenu", signedInSideMenuBlt(this.b, this));
+        break;
+    }
   }
 
-  load(b: Builder) {
+  content(what: WhatContent) {
+    switch (what) {
+      case "blank":
+        this.main.replace("content", "");
+        break;
+      case "create account":
+        this.main.replace("content", createAccContentBlt(this.b, this));
+        break;
+      case "sign in":
+        this.main.replace("content", signInContentBlt(this.b, this));
+        break;
+      case "create forum":
+        this.main.replace("content", createForumContentBlt(this.b, this));
+        break;
+    }
+  }
+
+  load() {
     this.main.replace("content", "...Loading");
     this.bfetch
       .method("GET")
       .url("/user/load")
       .catchErrorCode(401, async () => {
-        this.signIn(b);
+        this.sideMenu("signed out");
+        this.content("sign in");
         return false;
       })
-      .onSuccess(async (response) => {
-        const user = await response.text();
-        console.log(user);
+      .onSuccess(async (r) => {
+        const user = await r.text();
+        this.sideMenu("signed in", user);
+        this.content("blank");
       })
       .send();
   }
@@ -75,32 +112,32 @@ export class Page {
 
 new Built(document.body, new Builder()).modifySelf((self, b) => {
   const header = b.tag("header").childNode("NEEBELL").build();
-  const sideMenu = b.tag("nav").build();
+  const sideBar = b
+    .tag("aside")
+    .childNode("", "h2")
+    .childNode("", "sideMenu")
+    .build();
   const main = b.tag("main").childNode("", "content").build();
   const mainError = mainErrorBlt(b);
 
-  const bfetch = new Bfetch("http://127.0.0.1:8000").onError(
-    handleErrorFactory(mainError)
-  );
-
-  const page = new Page({ header, sideMenu, main, mainError }, bfetch);
+  const page = new Page(b, { header, sideBar, main, mainError });
 
   const container = b
-    .className("flex h-full")
+    .className("flex h-screen")
     .childNode(
-      sideMenu.className(
-        "flex-none flex flex-col space-y-3 p-3 h-full bg-neutral-800"
+      sideBar.className(
+        "flex-none flex flex-col space-y-3 p-3 h-screen bg-neutral-800"
       )
     )
-    .childNode(main.className("flex-1 p-3  h-full"))
+    .childNode(main.className("flex-1 p-3  h-screen"))
     .build();
 
   self
     .className("h-full")
     .childNode(header.className("p-3").className(dark))
     .childNode(container)
-    .childNode(mainError);
-  page.load(b);
+    .childNode(mainError.className("fixed top-5 left-0 right-0"));
+  page.load();
 });
 
 // const baseDisplay = (b: Builder) =>
