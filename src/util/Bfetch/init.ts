@@ -29,6 +29,7 @@ interface InitPost {
   method: "POST";
   body: string | FormData | undefined;
   headers: Headers;
+  credentials: RequestCredentials;
 }
 
 export const urlInitPost = (
@@ -49,12 +50,16 @@ export const urlInitPost = (
     newHeaders.set("Content-Type", "application/x-www-form-urlencoded");
     body = encodeUrl(url, data).searchParams;
   }
-  return [new URL(url), { method: "POST", body, headers: newHeaders }];
+  return [
+    new URL(url),
+    { method: "POST", body, headers: newHeaders, credentials: "include" },
+  ];
 };
 
 interface initGet {
   method: "GET";
   headers: Headers;
+  credentials: RequestCredentials;
 }
 
 export const urlInitGet = (
@@ -64,5 +69,8 @@ export const urlInitGet = (
 ): [URL, initGet] => {
   const newHeaders = headers || new Headers();
   const newUrl = encodeUrl(url, data);
-  return [newUrl, { method: "GET", headers: newHeaders }];
+  return [
+    newUrl,
+    { method: "GET", headers: newHeaders, credentials: "include" },
+  ];
 };

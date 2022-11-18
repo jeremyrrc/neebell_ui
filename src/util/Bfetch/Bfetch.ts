@@ -110,7 +110,12 @@ export class Bfetch {
     let params;
     if (v instanceof Event) {
       const input = v.target;
-      if (!(input instanceof HTMLInputElement)) return null;
+      console.log(input instanceof HTMLTextAreaElement);
+      if (
+        !(input instanceof HTMLInputElement) &&
+        !(input instanceof HTMLTextAreaElement)
+      )
+        return null;
       const form = input.form;
       if (!form) return null;
       params = new FormData(form);

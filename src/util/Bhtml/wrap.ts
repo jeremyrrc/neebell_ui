@@ -10,7 +10,7 @@ import {
   appendArrayToArray,
   setRecordValueToMap,
   removeValuesInArray,
-  narrowToFutureChildNode,
+  parseInput,
   isNothing,
   appendNode,
   produceNode,
@@ -53,7 +53,7 @@ export class ChildNodeRegistry<T extends HTMLElement> {
   childNode(v: PotentialFutureChildNode, key?: string) {
     if (isNothing(v)) return this;
     if (!this.registry) this.registry = new Array();
-    v = narrowToFutureChildNode(v);
+    v = parseInput(v);
     appendNode(this.elem, v);
     this.registry.push(key);
     return this;
@@ -73,7 +73,7 @@ export class ChildNodeRegistry<T extends HTMLElement> {
     if (isNothing(v)) return this;
     const node = this.#get(where);
     if (!node) return this;
-    v = narrowToFutureChildNode(v);
+    v = parseInput(v);
     node.replaceWith(produceNode(v));
     return this;
   }
@@ -97,7 +97,7 @@ export class ChildNodeRegistry<T extends HTMLElement> {
     const index = this.#getIndex(where);
     if (index === undefined) return this;
     const node = this.elem.childNodes[index];
-    v = narrowToFutureChildNode(v);
+    v = parseInput(v);
     node.after(produceNode(v));
     if (index === this.registry.length) {
       this.registry.push(key);
@@ -117,7 +117,7 @@ export class ChildNodeRegistry<T extends HTMLElement> {
     const index = this.#getIndex(where);
     if (index === undefined) return this;
     const node = this.elem.childNodes[index];
-    v = narrowToFutureChildNode(v);
+    v = parseInput(v);
     node.before(produceNode(v));
     if (index === 0) {
       this.registry.unshift(key);
@@ -248,7 +248,7 @@ export class Wrap<T extends HTMLElement> extends ChildNodeRegistry<T> {
     if (typeof v === "function") {
       v = v(this.builder);
     }
-    v = narrowToFutureChildNode(v);
+    v = parseInput(v);
     this.elem.replaceWith(produceNode(v));
     return this;
   }

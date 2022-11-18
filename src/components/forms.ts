@@ -1,6 +1,6 @@
-import { Builder } from "../util/Bhtml/index.js";
+import { Builder } from "../util/Bhtml/builder.js";
 import { Page } from "../main.js";
-import { namePattern, accent } from "../main.js";
+import { namePattern, accent, dark, mid } from "../main.js";
 import { lableTextInputB, submitInputB, formB } from "./base.js";
 
 const lableInputNamePassword = (b: Builder, idPrefix: string) => {
@@ -13,6 +13,7 @@ const lableInputNamePassword = (b: Builder, idPrefix: string) => {
       name: "name",
       pattern: namePattern,
       minLength: "1",
+      required: "true",
       id: idPrefix + "Name",
       for: idPrefix + "Name",
     },
@@ -26,6 +27,7 @@ const lableInputNamePassword = (b: Builder, idPrefix: string) => {
       title: "Enter a password at least 8 charaters long.",
       name: "password",
       minLength: "8",
+      required: "true",
       id: idPrefix + "Password",
       for: idPrefix + "Password",
     },
@@ -48,6 +50,7 @@ export const createAccForm = (b: Builder, p: Page) => {
       title: "Rewrite password to confirm your password.",
       name: "confirmPassword",
       minLength: "8",
+      required: "true",
       id: idPrefix + "ConfirmPassword",
       for: idPrefix + "ConfirmPassword",
     },
@@ -70,18 +73,7 @@ export const createAccForm = (b: Builder, p: Page) => {
     .build();
 
   const submitInput = submitInputB(b, "Create Account")
-    .event("click", (e) => {
-      e.preventDefault();
-      p.bfetch
-        .url("/user/create")
-        .method("POST")
-        .sendAs("encoded")
-        .params(e)
-        .onSuccess(() => {
-          p.content(b, "sign in");
-        })
-        .send();
-    })
+    .event("click", p.create_user)
     .build();
 
   return formB(b)
@@ -97,23 +89,8 @@ export const signInForm = (b: Builder, p: Page) => {
     b,
     "signInForm"
   );
-
   const submitInput = submitInputB(b, "Sign In")
-    .event("click", (e) => {
-      e.preventDefault();
-      p.bfetch
-        .url("/user/sign-in")
-        .method("POST")
-        .sendAs("encoded")
-        .params(e)
-        .onSuccess(async (r) => {
-          const user = await r.text();
-          p.sideMenu(b, "signed in", user);
-          p.content(b, "blank");
-          console.log(user);
-        })
-        .send();
-    })
+    .event("click", p.sign_in)
     .build();
 
   return formB(b)
@@ -134,6 +111,7 @@ export const createForumForm = (b: Builder, p: Page) => {
       name: "name",
       pattern: namePattern,
       minLength: "1",
+      required: "true",
       id: idPrefix + "Name",
       for: idPrefix + "Name",
     },
@@ -141,24 +119,64 @@ export const createForumForm = (b: Builder, p: Page) => {
   ).build();
 
   const submitInput = submitInputB(b, "Create Forum")
-    .event("click", (e) => {
-      e.preventDefault();
-      p.bfetch
-        .url("/forum/create")
-        .method("POST")
-        .sendAs("encoded")
-        .params(e)
-        .onSuccess(async (r) => {
-          const user = await r.text();
-          p.sideMenu(b, "signed in", user);
-          p.content(b, "blank");
-        })
-        .send();
-    })
+    .event("click", p.create_forum)
     .build();
 
   return formB(b)
     .className("max-w-lg")
     .childNode(nameLableInput)
     .childNode(submitInput.className(accent));
+};
+
+export const sendMessageForm = (forum_id: string, p: Page, b: Builder) => {
+  const user = p._main.elem.dataset.user;
+  const userInputHidden = b
+    .tag("input")
+    .attributes({ type: "hidden", name: "user", value: user })
+    .build();
+  const forumIdHiddenInput = b
+    .tag("input")
+    .attributes({ type: "hidden", name: "forum_hex_id", value: forum_id })
+    .build();
+
+  const id = "sendMessageInput";
+  const messageLable = b
+    .tag("label")
+    .attribute("for", id)
+    .childNode(user)
+    .build();
+  const messageInput = b
+    .tag("textarea")
+    .id(id)
+    .attributes({ type: "text", name: "value", placeholder: "Send a message" })
+    .event("keypress", (e) => {
+      if (e.code === "Enter") {
+        e.preventDefault();
+        p.sendMessage(e);
+        const target = e.target as HTMLInputElement;
+        const form = target.form as HTMLFormElement;
+        form.reset();
+      }
+    })
+    .build();
+  const submitInput = b
+    .tag("input")
+    .attributes({ type: "submit", value: "Send" })
+    .event("click", p.sendMessage)
+    .build();
+  return b
+    .tag("form")
+    .className("flex")
+    .childNode(
+      messageLable.className("px-3 py-2 flex items-center").className(dark)
+    )
+    .childNode(userInputHidden)
+    .childNode(forumIdHiddenInput)
+    .childNode(messageInput.className("w-full p-2 mx-1").className(dark))
+    .childNode(
+      submitInput
+        .className("px-3 py-2 rounded-sm cursor-pointer")
+        .className(mid)
+    )
+    .build();
 };

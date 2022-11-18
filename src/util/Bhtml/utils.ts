@@ -1,13 +1,17 @@
 import {
-  Built,
   Nothing,
   BuilderProps,
   PotentialFutureChildNode,
   FutureChildNode,
 } from "./index.js";
 
+import { Builder } from "./builder.js";
+import { Built } from "./built.js";
+
 export const isNothing = (v: any): v is Nothing =>
   v === null || v === undefined;
+
+export const isSomething = (v: any): v is Nothing => !isNothing(v);
 
 // String
 export const appendStringToString = (
@@ -66,25 +70,26 @@ export const setRecordValueToMap = <V>(
 };
 
 // This is where any conversion of the user input needs to happen.
-// TODO: Maybe a function that returns a FutureChildNode could be executed here in
-// the future.
-export const narrowToFutureChildNode = (
+export const parseInput = (
+  b: Builder,
   v: NonNullable<PotentialFutureChildNode>
 ): FutureChildNode => {
+  if (typeof v === "function") {
+    const built = v(b);
+    return built;
+  }
   if (typeof v === "number") return v.toString();
   return v;
 };
 
 // If the key is undefined then I'm not going to keep it as a Built<HTMLElement>
-// But instead store it as a HTMLElement. I still keep the HTMLElement so that
-// the Built.childElems... methods can still modify all the HTMLElement children
-// of the Built.
-export const unwrapIfKeyUndefined = (
+// But instead store it as a HTMLElement.
+export const unwrapBuiltIfKeyUndefined = (
   key: string | undefined,
   v: FutureChildNode
-): string | HTMLElement | [string, string | Built<HTMLElement>] => {
+): string | HTMLElement | [string, string | Built] => {
   if (key === undefined) {
-    return typeof v === "object" ? v.unwrap() : v;
+    return v instanceof Built ? v.unwrap() : v;
   }
   return [key, v];
 };
@@ -92,46 +97,34 @@ export const unwrapIfKeyUndefined = (
 // Unwrap the Built or convert string to Text in order to a Node that can be
 // appended.
 export const produceNode = (
-  v: string | HTMLElement | Built<HTMLElement>
+  v: string | HTMLElement | Built
 ): Text | HTMLElement => {
   if (v instanceof HTMLElement) return v;
   if (typeof v === "string") return document.createTextNode(v);
   return v.unwrap();
 };
 
-// Append the produced Node from produceNode. Return the Node to be used in Built.
+// Append the produced Node from produceNode. Return the Text or preserve the
+// Built<HTMLElement> if a key is defined.
 export const appendNode = (
   elem: Element,
-  v: string | HTMLElement | Built<HTMLElement>
-): Text | HTMLElement => {
+  v: string | HTMLElement | Built,
+  key: string | undefined
+): Text | HTMLElement | Built => {
   const node = produceNode(v);
   elem.appendChild(node);
+  if (typeof key === "string" && v instanceof Built) return v;
   return node;
 };
 
-// Add events to the HTMLElement with AbortController.signal.
-// And return the Abort controllers stored in a Map with the keys
-// that were given (or number that was produced for events that didn't get a name)
-// (This happened in Builder.event | Builder.events)
-// as keys so that events can be removed in Built.removeEvent.
-export const addEventsSignals = (
-  elem: Element,
-  p: NonNullable<BuilderProps["events"]>
-) => {
-  const abortControllers = new Map<string, AbortController>();
-  for (const [k, v] of p) {
-    const [type, listener] = v;
-    const abortController = new AbortController();
-    elem.addEventListener(type, listener, {
-      signal: abortController.signal,
-    });
-    abortControllers.set(k.toString(), abortController);
-  }
-  return abortControllers;
-};
+// Only include Text | Built<HTMLElement> into registry.
+// Exclude HTMLElements that were unwrapped out of the Builts (in produceNode)
+// because they didn't have a defined key.
+export const isRegistryItem = (item: any): item is Text | Built =>
+  item instanceof Text || item instanceof Built;
 
 const applyPropsMethods = {
-  id: (elem: Element, p: NonNullable<BuilderProps["id"]>) => (elem.id = p),
+  id: (elem: HTMLElement, p: NonNullable<BuilderProps["id"]>) => (elem.id = p),
 
   className: (elem: Element, p: any) => {
     for (const c of p) {
@@ -139,7 +132,17 @@ const applyPropsMethods = {
     }
   },
 
-  attributes: (elem: Element, p: NonNullable<BuilderProps["attributes"]>) => {
+  events: (elem: HTMLElement, p: NonNullable<BuilderProps["events"]>) => {
+    for (const [_k, v] of p) {
+      const [type, listener, options] = v;
+      elem.addEventListener(type, listener, options);
+    }
+  },
+
+  attributes: (
+    elem: HTMLElement,
+    p: NonNullable<BuilderProps["attributes"]>
+  ) => {
     for (const [name, value] of p) {
       elem.setAttribute(name, value);
     }
