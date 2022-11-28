@@ -1,4 +1,6 @@
 import { Built } from "./util/Bhtml/built.js";
+// import { Builder } from "./util/Bhtml/builder.js";
+// import { inputB } from "./util/Bhtml/bhtml.js";
 import { Bfetch, Error } from "./util/Bfetch/Bfetch.js";
 import {
   mainErrorBlt,
@@ -17,7 +19,9 @@ export const accent = "bg-orange-500 text-neutral-900";
 
 export const namePattern = "[A-Za-z0-9_-]+";
 
-const showError = (errorBlt: Built, mess: string) => {
+type Tag = keyof HTMLElementTagNameMap;
+
+const showError = (errorBlt: Built<Tag>, mess: string) => {
   errorBlt.modify("errorMessage", (message) => {
     if (message instanceof Text) {
       message.data = mess;
@@ -28,7 +32,7 @@ const showError = (errorBlt: Built, mess: string) => {
   errorBlt.elem.classList.remove("hidden");
 };
 
-const handleErrorFactory = (errorBlt: Built) => {
+const handleErrorFactory = (errorBlt: Built<Tag>) => {
   return (err: Error, _bf: Bfetch) => {
     showError(errorBlt, err.message);
   };
@@ -36,7 +40,7 @@ const handleErrorFactory = (errorBlt: Built) => {
 
 type MainComponents = Record<
   "header" | "sideBar" | "main" | "mainError",
-  Built
+  Built<Tag>
 >;
 
 interface ObjectId {
@@ -63,10 +67,10 @@ type WhatMain =
 type WhatSideBar = "signed in" | "signed out";
 
 export class Page {
-  _header: Built;
-  _sideBar: Built;
-  _main: Built;
-  _mainError: Built;
+  _header: Built<Tag>;
+  _sideBar: Built<Tag>;
+  _main: Built<Tag>;
+  _mainError: Built<Tag>;
   bfetch: Bfetch;
 
   constructor({ header, sideBar, main, mainError }: MainComponents) {
@@ -253,11 +257,13 @@ new Built(document.body).modifySelf((self, b) => {
     .childNode("", "forums")
     .build();
   const main = b.tag("main").childNode("", "content").build();
+  const input = b.tag("input").build();
+  input.elem;
   const mainError = mainErrorBlt(b);
 
   const page = new Page({ header, sideBar, main, mainError });
-
   const container = b
+    .tag("div")
     .childNode(
       sideBar.className(
         "flex flex-col space-y-3 p-3 h-full bg-neutral-800 overflow-auto"
@@ -271,40 +277,49 @@ new Built(document.body).modifySelf((self, b) => {
     .childNode(header.className("p-3").className(dark))
     .childNode(container.className("flex flex-row h-full"))
     .childNode(mainError.className("fixed top-5 left-0 right-0"));
+
   page.load();
 });
 
-// const baseDisplay = (b: Builder) =>
-//   b.childNode("Clicked: ").childNode(0, "count");
+// const display = (b: Builder) =>
+//   b
+//     .tag("div")
+//     .childNode("Clicked: ")
+//     .childNode(0, "count")
+//     .childNode(" times.");
 
-// const display = (b: Builder) => baseDisplay(b).childNode(" times.");
+// const display = (b: Builder) =>
+//   b
+//     .tag("div")
+//     .childNode("Clicked: ")
+//     .childNode((b) => inputB(b).build().startValue("0"), "count")
+//     .childNode(" times.");
 
-// const incCountListenerFactory = (
-//   hasTextNode: Built<HTMLElement>,
-//   countTextNodeKey: string
-// ) => {
+// const incCountListenerFactory = (hasTextNode: Built<HTMLElement>, countTextKey: string) => {
 //   return (_e: Event) => {
-//     hasTextNode.modify(countTextNodeKey, (text) => {
-//       if (text instanceof Text) {
-//         const count = parseInt(text.data) + 1;
-//         text.data = count.toString();
+//     hasTextNode.modify(countTextKey, (item) => {
+//       if ("kind" in item && item.kind === "input") {
+//         const curr = parseInt(item.elem.value);
+//         item.elem.value = (curr + 1).toString();
 //       }
 //     });
 //   };
 // };
 
-// const button = (b: Builder, displayWrap: Built<HTMLElement>) => {
-//   return b
-//     .tag("button")
-//     .childNode("Clicker")
-//     .event("click", incCountListenerFactory(displayWrap, "count"))
-//     .build<HTMLButtonElement>();
+// const clicker = (displayBlt: Built<HTMLElement>) => {
+//   return (b: Builder) =>
+//     b
+//       .tag("button")
+//       .childNode("Clicker")
+//       .on("click", incCountListenerFactory(displayBlt, "count"))
+//       .build();
 // };
 
-// new Built(document.body, new Builder()).childNode((b) => {
-//   const displayWrap = display(b).build();
+// new Built(document.body).childNode((b) => {
+//   const displayBlt = display(b).build();
 //   return b
-//     .childNode(displayWrap)
-//     .childNode((b) => button(b, displayWrap))
+//     .tag("div")
+//     .childNode(displayBlt)
+//     .childNode(clicker(displayBlt))
 //     .build();
 // });

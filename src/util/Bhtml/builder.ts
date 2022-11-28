@@ -13,24 +13,45 @@ import {
 } from "./utils.js";
 
 import { Built } from "./built.js";
+import { Tag } from "./index.js";
+
+import { descriptor } from "./bhtml.js";
 
 import {
   FutureChildNode,
   PotentialFutureChildNode,
   InputValues,
   Nothing,
-  BuilderProps,
+  ChildrenProps,
 } from "./index.js";
 
+export interface BuilderProps {
+  cache: string | null;
+  id: string | null;
+  className: Array<string> | null;
+  attributes: Map<string, string> | null;
+  data: Map<string, string> | null;
+  events: Map<
+    string | symbol,
+    [
+      keyof HTMLElementEventMap,
+      EventListener,
+      boolean | AddEventListenerOptions
+    ]
+  > | null;
+  abortControllers: Map<string, AbortController> | null;
+  childrenProps: ChildrenProps | null;
+}
+
 export class Builder {
+  tagName?: keyof HTMLElementTagNameMap;
   cleared: boolean;
   props: BuilderProps;
-  childNodes: Array<string | HTMLElement | [string, string | Built]>;
+  childNodes: Array<string | HTMLElement | [string, string | Built<Tag>]>;
   constructor() {
     this.cleared = false;
     this.props = {
       cache: null,
-      tag: null,
       id: null,
       className: null,
       attributes: null,
@@ -52,7 +73,7 @@ export class Builder {
     return Builder.builder.cleared ? Builder.builder : new Builder();
   }
 
-  static cache = new Map<string, Built>();
+  static cache = new Map<string, Built<Tag>>();
 
   cache(v: string | Nothing) {
     if (isNothing(v)) return this;
@@ -64,15 +85,21 @@ export class Builder {
     return Builder.cache.get(v);
   }
 
-  // b(v: keyof typeof tagMap) {
-  //   return new tagMap[v]();
-  // }
-
-  tag(v: string | Nothing) {
-    if (isNothing(v) || v === "") return this;
-    this.props.tag = v;
-    return this;
+  tag<Tag extends keyof HTMLElementTagNameMap>(tagName: Tag) {
+    this.tagName = tagName;
+    const build = Object.create(this);
+    Object.defineProperty(build, "build", descriptor(builder.build));
+    return build as Builder & {
+      build: () => Built<Tag>;
+    };
   }
+
+  // tag(v: string) {
+  //   this.props.tag = v;
+  //   Object.defineProperty(this, "build", descriptor(builder.build));
+  //   // @ts-ignore
+  //   return this as Builder & { build: typeof builder.build };
+  // }
 
   id(v: InputValues["id"]) {
     if (v === "") return this;
@@ -150,7 +177,7 @@ export class Builder {
     return this;
   }
 
-  event<K extends keyof HTMLElementEventMap>(
+  on<K extends keyof HTMLElementEventMap>(
     type: K,
     listener: (e: HTMLElementEventMap[K]) => void,
     options?: boolean | AddEventListenerOptions,
@@ -202,7 +229,7 @@ export class Builder {
     where =
       typeof where === "string"
         ? this.childNodes
-            .filter((v): v is [string, string | Built] => Array.isArray(v))
+            .filter((v): v is [string, string | Built<Tag>] => Array.isArray(v))
             .findIndex(([k, _v]) => k === where)
         : where;
     if (where === -1) return undefined;
@@ -282,52 +309,114 @@ export class Builder {
     this.props[k] = null;
     return this;
   }
-
-  build() {
-    // We are going to separate out some special properties to to special things with
-    // them. The rest will be added to the HTMLElement created below in 'applyProps'.
-
-    // AbortControllers who's signal was added in elem.addEventlistener inside 'applyProps'.
-    // These will be used in the returned Built object to remove events that are added here.
-    let { tag, cache, abortControllers, childrenProps, ...rest } = this.props;
-    // The freshly made HTMLElement
-    const elem = document.createElement(tag || "div");
-    // Gather all the information about childNodes that will be needed in the returned
-    // Built object.
-    let builtRegistry: Map<string, Text | Built> | undefined;
-    if (this.childNodes) {
-      builtRegistry = new Map();
-      for (const item of this.childNodes) {
-        // Identify registry items that were added without a key. By
-        // creating a key/value tuple with key undefined for items that are
-        // not already key/value tuples. A destructure assignment of the tuple
-        // to better identify the items that didn't get a key, and
-        // handle the value.
-        const [k, v]:
-          | [string, string | Built]
-          | [undefined, string | HTMLElement] = Array.isArray(item)
-          ? item
-          : [undefined, item];
-        const node = appendNode(elem, v, k);
-        // Don't include items that where not given keys.
-        // Don't include HTMLElements that were unwrapped out of Builts.
-        // into the registry.
-        if (k !== undefined && isRegistryItem(node)) builtRegistry.set(k, node);
-      }
-    }
-    // Add id, classes attributes to the freshly made HTMLElement.
-    applyProps(elem, rest);
-    // This might need a special Built
-    const built = new Built(
-      elem,
-      builtRegistry,
-      childrenProps || undefined,
-      abortControllers || undefined
-    );
-    // Cache this build so that we might not have to do all the above again.
-    if (cache) Builder.cache.set(cache, built);
-    // Clear out all the BuilderProperties and childNodes so that this Builder can continue to be used.
-    this.clear();
-    return built;
-  }
 }
+
+function build(this: Builder) {
+  // We are going to separate out some special properties to to special things with
+  // them. The rest will be added to the HTMLElement created below in 'applyProps'.
+
+  // AbortControllers who's signal was added in elem.addEventlistener inside 'applyProps'.
+  // These will be used in the returned Built object to remove events that are added here.
+  let { cache, abortControllers, childrenProps, ...rest } = this.props;
+  // The freshly made HTMLElement
+  const elem = document.createElement(this.tagName || "div");
+  // Gather all the information about childNodes that will be needed in the returned
+  // Built object.
+  let builtRegistry: Map<string, Text | Built<Tag>> | undefined;
+  if (this.childNodes) {
+    builtRegistry = new Map();
+    for (const item of this.childNodes) {
+      // Identify registry items that were added without a key. By
+      // creating a key/value tuple with key undefined for items that are
+      // not already key/value tuples. A destructure assignment of the tuple
+      // to better identify the items that didn't get a key, and
+      // handle the value.
+      const [k, v]:
+        | [string, string | Built<Tag>]
+        | [undefined, string | HTMLElement] = Array.isArray(item)
+        ? item
+        : [undefined, item];
+      const node = appendNode(elem, v, k);
+      // Don't include items that where not given keys.
+      // Don't include HTMLElements that were unwrapped out of Builts.
+      // into the registry.
+      if (k !== undefined && isRegistryItem(node)) builtRegistry.set(k, node);
+    }
+  }
+  // Add id, classes attributes to the freshly made HTMLElement.
+  applyProps(elem, rest);
+  // This might need a special Built
+  const built = new Built(
+    elem,
+    builtRegistry,
+    childrenProps || undefined,
+    abortControllers || undefined
+  );
+  built.kind = this.tagName || "div";
+  // Cache this build so that we might not have to do all the above again.
+  if (cache) Builder.cache.set(cache, built);
+  // Clear out all the BuilderProperties and childNodes so that this Builder can continue to be used.
+  this.clear();
+  return built;
+}
+
+export const builder = <{ build: typeof build }>Object.defineProperty(
+  {},
+  "build",
+  {
+    writable: false,
+    enumerable: false,
+    configurable: false,
+    value: build,
+  }
+);
+
+// export const builder = {
+//   build(this: Builder) {
+//     // We are going to separate out some special properties to to special things with
+//     // them. The rest will be added to the HTMLElement created below in 'applyProps'.
+
+//     // AbortControllers who's signal was added in elem.addEventlistener inside 'applyProps'.
+//     // These will be used in the returned Built object to remove events that are added here.
+//     let { tag, cache, abortControllers, childrenProps, ...rest } = this.props;
+//     // The freshly made HTMLElement
+//     const elem = document.createElement(tag || "div");
+//     // Gather all the information about childNodes that will be needed in the returned
+//     // Built object.
+//     let builtRegistry: Map<string, Text | Build> | undefined;
+//     if (this.childNodes) {
+//       builtRegistry = new Map();
+//       for (const item of this.childNodes) {
+//         // Identify registry items that were added without a key. By
+//         // creating a key/value tuple with key undefined for items that are
+//         // not already key/value tuples. A destructure assignment of the tuple
+//         // to better identify the items that didn't get a key, and
+//         // handle the value.
+//         const [k, v]:
+//           | [string, string | Build]
+//           | [undefined, string | HTMLElement] = Array.isArray(item)
+//           ? item
+//           : [undefined, item];
+//         const node = appendNode(elem, v, k);
+//         // Don't include items that where not given keys.
+//         // Don't include HTMLElements that were unwrapped out of Builts.
+//         // into the registry.
+//         if (k !== undefined && isRegistryItem(node)) builtRegistry.set(k, node);
+//       }
+//     }
+//     // Add id, classes attributes to the freshly made HTMLElement.
+//     applyProps(elem, rest);
+//     // This might need a special Built
+//     const built = new Built(
+//       elem,
+//       builtRegistry,
+//       childrenProps || undefined,
+//       abortControllers || undefined
+//     );
+//     // Cache this build so that we might not have to do all the above again.
+//     if (cache) Builder.cache.set(cache, built);
+//     // Clear out all the BuilderProperties and childNodes so that this Builder can continue to be used.
+//     this.clear();
+//     return built;
+//   },
+// };

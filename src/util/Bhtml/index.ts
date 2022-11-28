@@ -2,14 +2,15 @@ import { Built } from "./built.js";
 import { Builder } from "./builder.js";
 
 export type Nothing = null | undefined;
-type MakeBuilt = (b: Builder) => Built;
+type MakeBuilt = (b: Builder) => Built<Tag>;
+export type Tag = keyof HTMLElementTagNameMap;
 export type PotentialFutureChildNode =
   | MakeBuilt
   | string
   | number
-  | Built
+  | Built<Tag>
   | Nothing;
-export type FutureChildNode = string | Built;
+export type FutureChildNode = string | Built<Tag>;
 
 export interface InputValues {
   id: string | Nothing;
@@ -23,25 +24,6 @@ export interface InputValues {
 
 export interface ChildrenProps {
   className?: Array<string>;
-}
-
-export interface BuilderProps {
-  cache: string | null;
-  id: string | null;
-  tag: string | null;
-  className: Array<string> | null;
-  attributes: Map<string, string> | null;
-  data: Map<string, string> | null;
-  events: Map<
-    string | symbol,
-    [
-      keyof HTMLElementEventMap,
-      EventListener,
-      boolean | AddEventListenerOptions
-    ]
-  > | null;
-  abortControllers: Map<string, AbortController> | null;
-  childrenProps: ChildrenProps | null;
 }
 
 // type KeyedReturns<T extends string | number> = T extends string

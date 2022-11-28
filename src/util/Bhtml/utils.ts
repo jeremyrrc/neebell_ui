@@ -1,12 +1,8 @@
-import {
-  Nothing,
-  BuilderProps,
-  PotentialFutureChildNode,
-  FutureChildNode,
-} from "./index.js";
+import { Nothing, PotentialFutureChildNode, FutureChildNode } from "./index.js";
 
-import { Builder } from "./builder.js";
+import { Builder, BuilderProps } from "./builder.js";
 import { Built } from "./built.js";
+import { Tag } from "./index.js";
 
 export const isNothing = (v: any): v is Nothing =>
   v === null || v === undefined;
@@ -50,9 +46,9 @@ export const appendRecordToMap = <T>(
   v: Record<string, T | Nothing> | Nothing
 ): Map<string, T> | null => {
   if (isNothing(v)) return prop;
-  const filteredV = Object.entries(v).filter(([_, t]) => t) as Array<
-    [string, T]
-  >;
+  const filteredV = Object.entries(v).filter(
+    ([_, t]) => !isNothing(t)
+  ) as Array<[string, T]>;
   if (filteredV.length === 0) return prop;
   const add = new Map(filteredV);
   if (prop === null) return add;
@@ -87,7 +83,7 @@ export const parseInput = (
 export const unwrapBuiltIfKeyUndefined = (
   key: string | undefined,
   v: FutureChildNode
-): string | HTMLElement | [string, string | Built] => {
+): string | HTMLElement | [string, string | Built<Tag>] => {
   if (key === undefined) {
     return v instanceof Built ? v.unwrap() : v;
   }
@@ -97,7 +93,7 @@ export const unwrapBuiltIfKeyUndefined = (
 // Unwrap the Built or convert string to Text in order to a Node that can be
 // appended.
 export const produceNode = (
-  v: string | HTMLElement | Built
+  v: string | HTMLElement | Built<Tag>
 ): Text | HTMLElement => {
   if (v instanceof HTMLElement) return v;
   if (typeof v === "string") return document.createTextNode(v);
@@ -108,9 +104,9 @@ export const produceNode = (
 // Built<HTMLElement> if a key is defined.
 export const appendNode = (
   elem: Element,
-  v: string | HTMLElement | Built,
+  v: string | HTMLElement | Built<Tag>,
   key: string | undefined
-): Text | HTMLElement | Built => {
+): Text | HTMLElement | Built<Tag> => {
   const node = produceNode(v);
   elem.appendChild(node);
   if (typeof key === "string" && v instanceof Built) return v;
@@ -120,8 +116,8 @@ export const appendNode = (
 // Only include Text | Built<HTMLElement> into registry.
 // Exclude HTMLElements that were unwrapped out of the Builts (in produceNode)
 // because they didn't have a defined key.
-export const isRegistryItem = (item: any): item is Text | Built =>
-  item instanceof Text || item instanceof Built;
+export const isRegistryItem = (item: any): item is Text | Built<Tag> =>
+  item instanceof Text || item instanceof Built<Tag>;
 
 const applyPropsMethods = {
   id: (elem: HTMLElement, p: NonNullable<BuilderProps["id"]>) => (elem.id = p),

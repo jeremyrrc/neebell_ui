@@ -1,131 +1,144 @@
 import { Builder } from "../util/Bhtml/builder.js";
 import { Page } from "../main.js";
 import { namePattern, accent, dark, mid } from "../main.js";
-import { lableTextInputB, submitInputB, formB } from "./base.js";
 
-const lableInputNamePassword = (b: Builder, idPrefix: string) => {
-  const name = lableTextInputB(
-    b,
-    {
+const inputClassName =
+  "mt-1 bg-neutral-200 text-neutral-600 rounded-sm p-1 border-2 border-neutral-600 invalid:border-rose-500 invalid:text-rose-500";
+const submitClassName = "cursor-pointer p-1";
+
+const reportValidity = (e: Event) =>
+  (e.target as HTMLInputElement).reportValidity();
+
+const lableInputNamePassword = (b: Builder) => {
+  const nameLable = b.tag("label").childNode("Name:").build();
+  const nameInput = b
+    .tag("input")
+    .attributes({
       type: "text",
-      title: "Enter a user name with no spaces. Only dashes and numbers.",
+      title:
+        "Enter a user name with no spaces. Only letters, dashes and numbers",
+      autocomplete: "off",
       placeholder: "john-doe45",
       name: "name",
       pattern: namePattern,
       minLength: "1",
+      maxLength: "20",
       required: "true",
-      id: idPrefix + "Name",
-      for: idPrefix + "Name",
-    },
-    "Name:"
-  ).build();
-
-  const pass = lableTextInputB(
-    b,
-    {
+    })
+    .on("input", reportValidity)
+    .build();
+  nameLable
+    .className("flex flex-col")
+    .childNode(nameInput.className(inputClassName));
+  const passLable = b.tag("label").childNode("Password:").build();
+  const passInput = b
+    .tag("input")
+    .attributes({
       type: "password",
       title: "Enter a password at least 8 charaters long.",
       name: "password",
       minLength: "8",
+      maxLength: "20",
       required: "true",
-      id: idPrefix + "Password",
-      for: idPrefix + "Password",
-    },
-    "Password:"
-  ).build();
-  return [name, pass];
+    })
+    .on("input", reportValidity)
+    .build();
+  passLable
+    .className("flex flex-col")
+    .childNode(passInput.className(inputClassName), "input");
+
+  return [nameLable, passLable];
 };
 
 export const createAccForm = (b: Builder, p: Page) => {
-  const idPrefix = "createForm";
-  const [nameLableInput, passwordLableInput] = lableInputNamePassword(
-    b,
-    idPrefix
-  );
-
-  const confirmPassLableInput = lableTextInputB(
-    b,
-    {
+  const [nameLable, passwordLable] = lableInputNamePassword(b);
+  const confirmPassLable = b
+    .tag("label")
+    .childNode("Confirm password:")
+    .build();
+  const confirmPassInput = b
+    .tag("input")
+    .attributes({
       type: "password",
       title: "Rewrite password to confirm your password.",
       name: "confirmPassword",
       minLength: "8",
       required: "true",
-      id: idPrefix + "ConfirmPassword",
-      for: idPrefix + "ConfirmPassword",
-    },
-    "Confirm password:"
-  )
-    .event("input", (e) => {
-      const confirmPassInput = e.target as HTMLInputElement | null;
-      if (!confirmPassInput) return;
-      const form = confirmPassInput.form;
-      if (!form) return;
-      const passInput = form.elements.namedItem(
-        "password"
-      ) as HTMLInputElement | null;
-      if (!passInput) return;
-
-      confirmPassInput.value !== passInput.value
-        ? confirmPassInput.setCustomValidity("Passwords don't match.")
-        : confirmPassInput.setCustomValidity("");
     })
     .build();
+  confirmPassInput.on("input", () => {
+    const passInput = passwordLable.getNode(1) as HTMLInputElement;
+    confirmPassInput.elem.value !== passInput.value
+      ? confirmPassInput.elem.setCustomValidity("Passwords don't match.")
+      : confirmPassInput.elem.setCustomValidity("");
+    confirmPassInput.elem.reportValidity();
+  });
+  confirmPassLable
+    .className("flex flex-col")
+    .childNode(confirmPassInput.className(inputClassName));
 
-  const submitInput = submitInputB(b, "Create Account")
-    .event("click", p.create_user)
+  const submitInput = b
+    .tag("input")
+    .attributes({ type: "submit", value: "Create Account" })
+    .on("click", p.create_user)
     .build();
 
-  return formB(b)
-    .className("max-w-lg")
-    .childNode(nameLableInput)
-    .childNode(passwordLableInput)
-    .childNode(confirmPassLableInput)
-    .childNode(submitInput.className(accent));
+  return b
+    .tag("form")
+    .className("flex flex-col space-y-3 max-w-lg")
+    .childNode(nameLable)
+    .childNode(passwordLable)
+    .childNode(confirmPassLable)
+    .childNode(submitInput.className(submitClassName).className(accent));
 };
 
 export const signInForm = (b: Builder, p: Page) => {
-  const [nameLableInput, passwordLableInput] = lableInputNamePassword(
-    b,
-    "signInForm"
-  );
-  const submitInput = submitInputB(b, "Sign In")
-    .event("click", p.sign_in)
+  const [nameLableInput, passwordLableInput] = lableInputNamePassword(b);
+  const submitInput = b
+    .tag("input")
+    .attributes({ type: "submit", value: "Sign In" })
+    .on("click", p.sign_in)
     .build();
 
-  return formB(b)
-    .className("max-w-lg")
+  return b
+    .tag("form")
+    .className("flex flex-col space-y-3 max-w-lg")
     .childNode(nameLableInput)
     .childNode(passwordLableInput)
-    .childNode(submitInput.className(accent));
+    .childNode(submitInput.className(submitClassName).className(accent));
 };
 
 export const createForumForm = (b: Builder, p: Page) => {
-  const idPrefix = "createForumForm";
-  const nameLableInput = lableTextInputB(
-    b,
-    {
+  const nameLable = b.tag("label").childNode("Name:").build();
+  const nameInput = b
+    .tag("input")
+    .attributes({
       type: "text",
       title: "Enter a forum name with no spaces. Only dashes and numbers.",
       placeholder: "cool-topic23",
       name: "name",
       pattern: namePattern,
-      minLength: "1",
+      minlength: "1",
       required: "true",
-      id: idPrefix + "Name",
-      for: idPrefix + "Name",
-    },
-    "Name:"
-  ).build();
+    })
+    .className(inputClassName)
+    .on("input", reportValidity)
+    .build();
+  nameLable
+    .className("flex flex-col")
+    .childNode(nameInput.className(inputClassName));
 
-  const submitInput = submitInputB(b, "Create Forum")
-    .event("click", p.create_forum)
+  const submitInput = b
+    .tag("input")
+    .attributes({ type: "submit", value: "Create Forum" })
+    .on("click", p.create_forum)
     .build();
 
-  return formB(b)
-    .className("max-w-lg")
-    .childNode(nameLableInput)
-    .childNode(submitInput.className(accent));
+  return b
+    .tag("form")
+    .className("flex flex-col space-y-3 max-w-lg")
+    .childNode(nameLable)
+    .childNode(submitInput.className(submitClassName).className(accent));
 };
 
 export const sendMessageForm = (forum_id: string, p: Page, b: Builder) => {
@@ -149,7 +162,7 @@ export const sendMessageForm = (forum_id: string, p: Page, b: Builder) => {
     .tag("textarea")
     .id(id)
     .attributes({ type: "text", name: "value", placeholder: "Send a message" })
-    .event("keypress", (e) => {
+    .on("keypress", (e) => {
       if (e.code === "Enter") {
         e.preventDefault();
         p.sendMessage(e);
@@ -162,7 +175,7 @@ export const sendMessageForm = (forum_id: string, p: Page, b: Builder) => {
   const submitInput = b
     .tag("input")
     .attributes({ type: "submit", value: "Send" })
-    .event("click", p.sendMessage)
+    .on("click", p.sendMessage)
     .build();
   return b
     .tag("form")

@@ -2,6 +2,7 @@ import { light, mid, dark } from "../main.js";
 import { Builder } from "../util/Bhtml/builder.js";
 import { Built } from "../util/Bhtml/built.js";
 import { Page, Forum } from "../main.js";
+import { Tag } from "../util/Bhtml/index.js";
 import {
   signInForm,
   createAccForm,
@@ -13,7 +14,7 @@ import { curry } from "lodash";
 
 export const mainErrorBlt = (b: Builder) => {
   const closeButton = buttonB(b, "Close")
-    .event("click", (e) => {
+    .on("click", (e) => {
       const button = e.target as HTMLButtonElement;
       button.parentElement?.classList.add("hidden");
     })
@@ -28,48 +29,50 @@ export const mainErrorBlt = (b: Builder) => {
 };
 
 // Sidebar side menu ==========
-export const signedOutSideMenuBlt = curry((p: Page, b: Builder) => {
-  const cacheKey = "signedOutSideMenu";
-  const cached = b.cached(cacheKey);
-  if (cached) return cached;
-  const createAccButton = buttonB(b, "Create Account")
-    .event("click", () => {
-      p.main("create account");
-    })
-    .build();
-  const signInButton = buttonB(b, "Sign In")
-    .event("click", () => {
-      p.main("sign in");
-    })
-    .build();
-  return b
-    .cache(cacheKey)
-    .tag("nav")
-    .className("flex flex-col space-y-3")
-    .childNode(createAccButton.className(mid))
-    .childNode(signInButton.className(mid))
-    .build();
-});
+export const signedOutSideMenuBlt = (p: Page) => {
+  return (b: Builder) => {
+    const cacheKey = "signedOutSideMenu";
+    const cached = b.cached(cacheKey);
+    if (cached) return cached;
+    const createAccButton = buttonB(b, "Create Account")
+      .on("click", () => {
+        p.main("create account");
+      })
+      .build();
+    const signInButton = buttonB(b, "Sign In")
+      .on("click", () => {
+        p.main("sign in");
+      })
+      .build();
+    return b
+      .tag("nav")
+      .cache(cacheKey)
+      .className("flex flex-col space-y-3")
+      .childNode(createAccButton.className(mid))
+      .childNode(signInButton.className(mid))
+      .build();
+  };
+};
 
 export const signedInSideMenuBlt = curry((p: Page, b: Builder) => {
   const cacheKey = "signedInSideMenu";
   const cached = b.cached(cacheKey);
   if (cached) return cached;
   const signOutButton = buttonB(b, "Sign Out")
-    .event("click", () => {
+    .on("click", () => {
       p.sign_out();
     })
     .build();
   const createForumButton = buttonB(b, "Create New Forum")
-    .event("click", () => {
+    .on("click", () => {
       p.main("create forum");
     })
     .build();
   const listOwnedForums = buttonB(b, "Owned Forums")
-    .event("click", p.forumListOwned)
+    .on("click", p.forumListOwned)
     .build();
   const listPermittedForums = buttonB(b, "Permitted Forums")
-    .event("click", p.forumListPermitted)
+    .on("click", p.forumListPermitted)
     .build();
   return b
     .cache(cacheKey)
@@ -85,26 +88,27 @@ export const signedInSideMenuBlt = curry((p: Page, b: Builder) => {
 export const sideBarForumsMenuBlt = (
   p: Page,
   { h2, forums }: { h2: string; forums: Array<Forum> },
-  nav: Builder
+  b: Builder
 ) => {
-  nav
+  const nav = b
     .tag("nav")
     .className("flex flex-col space-y-3")
-    .childNode((b) => b.tag("h2").childNode(h2).build());
+    .childNode((b) => b.tag("h2").childNode(h2).build())
+    .build();
   for (const forum of forums) {
-    nav.childNode((button) =>
-      button
+    nav.childNode((b) =>
+      b
         .tag("button")
         .childNode(forum.name)
         .className("p-1")
         .className(dark)
-        .event("click", () => {
+        .on("click", () => {
           p.main("forum", { forum });
         })
         .build()
     );
   }
-  return nav.build();
+  return nav;
 };
 
 // Main content ==========
@@ -170,12 +174,12 @@ export const forumListeningBlt = (forum: Forum, p: Page, b: Builder) => {
         .className("text-neutral-500 text-lg")
         .build()
     )
-    .childNode((ul) => {
-      ul.tag("ul");
+    .childNode((b) => {
+      const ul = b.tag("ul").build();
       for (const u of forum.permitted_users) {
-        ul.childNode((li) => li.tag("li").childNode(u).build());
+        ul.childNode((b) => b.tag("li").childNode(u).build());
       }
-      return ul.build();
+      return ul;
     })
     .build();
   const messages = b.tag("ul").build();
@@ -187,20 +191,32 @@ export const forumListeningBlt = (forum: Forum, p: Page, b: Builder) => {
     .className("flex flex-col h-full space-y-3")
     .childNode(h1.className("text-2xl"))
     .childNode(permittedList)
-    .childNode(display.className("h-full"))
+    .childNode(display.className("h-full space-y-3 overflow-auto"))
     .childNode(form)
     .build();
 };
 
-const subscribe = (uri: string, display: Built) => {
+const subscribe = (uri: string, display: Built<Tag>) => {
   var retryTime = 1;
 
   function connect(uri: string) {
     const events = new EventSource(uri, { withCredentials: true });
 
     events.addEventListener("message", (ev) => {
-      console.log("raw data", JSON.stringify(ev.data));
-      display.childNode((li) => li.tag("li").childNode(ev.data).build());
+      const data = JSON.parse(ev.data);
+      console.log("data", data);
+      const message = (b: Builder) => {
+        const user = b.tag("div").childNode(data.user).build();
+        const value = b.tag("div").childNode(data.value).build();
+        return b
+          .tag("li")
+          .className("flex")
+          .childNode(user.className("p-3").className(dark))
+          .childNode(value.className("p-3"))
+          .build();
+      };
+      display.childNode(message);
+      display.elem.lastElementChild?.scrollIntoView();
     });
 
     events.addEventListener("open", () => {

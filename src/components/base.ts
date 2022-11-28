@@ -1,4 +1,5 @@
 import { Builder } from "../util/Bhtml/builder.js";
+// import { Built } from "../util/Bhtml/built.js";
 
 // Layout ----------------------------
 
@@ -10,26 +11,156 @@ export const modalSectionB = (b: Builder, headerId: string) =>
 
 // -----------------------------------
 
-interface BaseAttributes {
+interface GlobalAttributes {
   [key: string]: string | null | undefined;
-  title?: string;
+  autocapitalize?: "off" | "on" | "words" | "characters";
+  autofocus?: "true" | "false";
+  contenteditable?: "true" | "false";
+  dir?: "ltr" | "rtl" | "auto";
+  draggable?: "true" | "false";
+  elementtiming?: string;
+  enterkeyhint?:
+    | "enter"
+    | "done"
+    | "go"
+    | "next"
+    | "previous"
+    | "search"
+    | "send";
+  exportparts?: string;
+  hidden?: "" | "hidden" | "until-found";
   id?: string;
+  inert?: "true" | "false";
+  inputmode?:
+    | "none"
+    | "text"
+    | "decimal"
+    | "numeric"
+    | "tel"
+    | "search"
+    | "email"
+    | "url";
+  is?: string;
+  itemid?: string;
+  itemprop?: string;
+  itemref?: string;
+  itemscope?: "true" | "false";
+  itemtype?: string;
+  lang?: string;
+  nonce?: string;
+  part?: string;
+  slot?: string;
+  spellcheck?: "true" | "false";
+  style?: string;
+  tabindex?: string;
+  title?: string;
+  translate?: "yes" | "no";
   role?: string;
 }
 
 // Form ------------------------------
-interface TextInputAttributes extends BaseAttributes {
-  type: "text" | "password" | "search" | "url" | "tel" | "email" | "number";
+interface InputAutocomplete {
+  autocomplete?:
+    | "off"
+    | "on"
+    | "name"
+    | "honorific-prefix"
+    | "given-name"
+    | "additional-name"
+    | "family-name"
+    | "honorific-suffix"
+    | "nickname"
+    | "email"
+    | "new-password"
+    | "current-password"
+    | "one-time-code"
+    | "organization-title"
+    | "organization"
+    | "street-address"
+    | "address-line1"
+    | "address-line2"
+    | "address-line3"
+    | "address-level4"
+    | "address-level3"
+    | "address-level2"
+    | "address-level1"
+    | "country"
+    | "country-name"
+    | "postal-code"
+    | "cc-name"
+    | "cc-given-name"
+    | "cc-additional-name"
+    | "cc-family-name"
+    | "cc-number"
+    | "cc-exp"
+    | "cc-exp-month"
+    | "cc-exp-year"
+    | "cc-csc"
+    | "cc-type"
+    | "transaction-currency"
+    | "transaction-amount"
+    | "language"
+    | "bday"
+    | "bday-day"
+    | "bday-month"
+    | "bday-year"
+    | "sex"
+    | "tel"
+    | "tel-country-code"
+    | "tel-national"
+    | "tel-local"
+    | "tel-extension"
+    | "impp"
+    | "url"
+    | "photo";
+}
+
+interface TextInputAttributes extends GlobalAttributes, InputAutocomplete {
+  type?: "text" | "password" | "search" | "url" | "tel" | "email" | "number";
+  disabled?: "true" | "false";
+  readonly?: "true" | "false";
   required?: "true" | "false";
   placeholder?: string;
   name?: string;
   pattern?: string;
-  minLength?: string;
+  size?: string;
+  maxlength?: string;
+  minlength?: string;
   min?: string;
   max?: string;
+  multiple?: "true" | "false";
 }
 
-interface LableAttributes extends BaseAttributes {
+interface FileInputAttributes extends GlobalAttributes {
+  accept?: string;
+  disabled?: string;
+  capture?: "user" | "environment";
+  multiple?: "true" | "false";
+}
+
+interface FormAttributes extends GlobalAttributes {
+  autocomplete?: "on" | "off";
+  name?: string;
+  disabled?: string;
+  rel?:
+    | "external"
+    | "help"
+    | "license"
+    | "next"
+    | "nofollow"
+    | "noopener"
+    | "noreferrer"
+    | "opener"
+    | "prev"
+    | "search";
+}
+
+// img, audio, video, script, link
+interface LinkAttributes extends GlobalAttributes {
+  crossorigin?: "anonymous" | "use-credentials";
+}
+
+interface LableAttributes extends GlobalAttributes {
   for?: string;
 }
 
@@ -61,7 +192,7 @@ export const lableTextInputB = (
   labelText: string
 ) => {
   const input = textInputB(b, attr).className("mt-2").build();
-  return labelB(b, labelText, { for: attr.for })
+  return labelB(b, labelText, attr)
     .childNode(input, "input")
     .className("flex flex-col");
 };
@@ -71,15 +202,19 @@ export const formB = (b: Builder) =>
 // ---------------------------------
 
 // Text ----------------------------
-export const h1B = (b: Builder, text: string, attr?: BaseAttributes) =>
+export const h1B = (b: Builder, text: string, attr?: GlobalAttributes) =>
   b.tag("h1").childNode(text).attributes(attr).className("text-2xl");
 
-export const h2B = (b: Builder, text: string, attr?: BaseAttributes) =>
+export const h2B = (b: Builder, text: string, attr?: GlobalAttributes) =>
   b.tag("h2").childNode(text).attributes(attr).className("text-xl");
 
 // Interactive ---------------------
 const buttonClassName = "cursor-pointer py-1 px-3 rounded-sm";
-export const submitInputB = (b: Builder, text: string, attr?: BaseAttributes) =>
+export const submitInputB = (
+  b: Builder,
+  text: string,
+  attr?: GlobalAttributes
+) =>
   b
     .tag("input")
     .className(buttonClassName)
@@ -89,10 +224,27 @@ export const submitInputB = (b: Builder, text: string, attr?: BaseAttributes) =>
       ...attr,
     });
 
-export const buttonB = (b: Builder, text: string, attr?: BaseAttributes) =>
+export const buttonB = (b: Builder, text: string, attr?: GlobalAttributes) =>
   b
     .tag("button")
     .childNode(text, "text")
     .className(buttonClassName)
     .attributes(attr);
 // ---------------------------------
+
+// class Form {
+//   form: Built<HTMLFormElement>
+//   constructor(b: Builder, attr: FormAttributes ) {
+//     const form = b.tag("form").attributes(attr).build();
+//     this.form = form;
+//   }
+//   label(text: string, attr: LableAttributes) {
+//     this.form.childNode((b) =>
+//       b.tag("label").childNode(text).attributes(attr).build()
+//     );
+//     return this;
+//   }
+//   textInput(attr: TextInputAttributes) {
+//     this.form.childNode((b) => b.tag("input").attributes(attr).build())
+//   }
+// }

@@ -10,6 +10,7 @@ import {
 } from "./utils.js";
 
 import { Builder } from "./builder.js";
+import { Tag } from "./index.js";
 
 import {
   ChildrenProps,
@@ -18,20 +19,16 @@ import {
   PotentialFutureChildNode,
 } from "./index.js";
 
-export type Cleaner = Record<
-  "id" | "className" | "attributes" | "events" | "childNodes",
-  () => void
->;
-
-export class Built {
-  elem: HTMLElement;
-  registry: Map<string, Text | Built>;
+export class Built<T extends keyof HTMLElementTagNameMap> {
+  elem: HTMLElementTagNameMap[T];
+  kind!: string;
+  registry: Map<string, Text | Built<Tag>>;
   childrenProps: ChildrenProps | null;
   abortControllers: Map<string, AbortController> | null;
 
   constructor(
-    elem: HTMLElement,
-    registry?: Map<string, Text | Built>,
+    elem: HTMLElementTagNameMap[T],
+    registry?: Map<string, Text | Built<Tag>>,
     childProps?: ChildrenProps,
     abortControllers?: Map<string, AbortController>
   ) {
@@ -116,7 +113,7 @@ export class Built {
     return this;
   }
 
-  event<K extends keyof HTMLElementEventMap>(
+  on<K extends keyof HTMLElementEventMap>(
     type: K,
     listener: (e: HTMLBodyElementEventMap[K]) => void,
     options?: boolean | AddEventListenerOptions,
@@ -145,17 +142,14 @@ export class Built {
     return this;
   }
 
-  modifySelf(fn: ((v: Built, b: Builder) => void) | Nothing) {
+  modifySelf(fn: ((v: this, b: Builder) => void) | Nothing) {
     if (!fn) return this;
     fn(this, Builder.getBuilder());
     return this;
   }
 
-  replaceSelf(v: ((b: Builder) => Built) | Nothing | PotentialFutureChildNode) {
+  replaceSelf(v: PotentialFutureChildNode) {
     if (!v) return this;
-    if (typeof v === "function") {
-      v = v(Builder.getBuilder());
-    }
     v = parseInput(Builder.getBuilder(), v);
     this.elem.replaceWith(produceNode(v));
     return this;
@@ -199,7 +193,7 @@ export class Built {
     return this;
   }
 
-  query(where: string) {
+  query(where: string): Built<Tag> | Text | undefined {
     const path = where.split("/");
     let item;
     let registry = this.registry;
@@ -220,10 +214,14 @@ export class Built {
     return this.elem.childNodes.item(where) || undefined;
   }
 
-  getItem(where: string | number) {
+  getItem<T extends string | number>(
+    where: T
+  ): T extends string ? Text | Built<Tag> | undefined : ChildNode | undefined {
     if (typeof where === "string") {
+      // @ts-ignore
       return this.registry.get(where);
     }
+    // @ts-ignore
     return this.elem.childNodes.item(where) || undefined;
   }
 
@@ -246,13 +244,17 @@ export class Built {
     return this;
   }
 
-  modify(
-    where: string | number,
-    fn: (cn: ChildNode | Built, b: Builder) => void | PotentialFutureChildNode
+  modify<T extends string | number>(
+    where: T,
+    fn: (
+      value: T extends string
+        ? Text | Built<Tag> | undefined
+        : ChildNode | undefined,
+      b: Builder
+    ) => void | PotentialFutureChildNode
   ) {
     if (isNothing(fn)) return this;
     const node = this.getItem(where);
-    if (!node) return this;
     const built = fn(node, Builder.getBuilder());
     if (built) this.replace(where, built);
     return this;
@@ -277,8 +279,8 @@ export class Built {
     return this;
   }
 
-  clear(prop?: keyof Cleaner) {
-    const c: Cleaner = {
+  clearer() {
+    return {
       id: () => (this.elem.id = ""),
       className: () => (this.elem.className = ""),
       attributes: () =>
@@ -297,13 +299,18 @@ export class Built {
         this.registry.clear();
       },
     };
+  }
+
+  clear(prop?: keyof ReturnType<Built<Tag>["clearer"]>) {
+    prop;
+    const cleaner = this.clearer();
     if (!prop) {
-      for (const k in c) {
-        c[k]();
+      for (const k in cleaner) {
+        cleaner[k]();
       }
       return this;
     }
-    if (c[prop]) c[prop]();
+    if (cleaner[prop]) cleaner[prop]();
     return this;
   }
 
