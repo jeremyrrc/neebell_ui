@@ -191,7 +191,7 @@ export const lableTextInputB = (
   attr: LableInputAttributes,
   labelText: string
 ) => {
-  const input = textInputB(b, attr).className("mt-2").build();
+  const input = textInputB(b, attr).className("mt-2");
   return labelB(b, labelText, attr)
     .childNode(input, "input")
     .className("flex flex-col");

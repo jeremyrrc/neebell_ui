@@ -110,7 +110,6 @@ export class Bfetch {
     let params;
     if (v instanceof Event) {
       const input = v.target;
-      console.log(input instanceof HTMLTextAreaElement);
       if (
         !(input instanceof HTMLInputElement) &&
         !(input instanceof HTMLTextAreaElement)

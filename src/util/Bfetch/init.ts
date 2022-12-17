@@ -16,7 +16,6 @@ const toJson = (data: Map<string, DataValue> | null): string => {
 };
 
 const encodeUrl = (url: string, data: Map<string, DataValue> | null) => {
-  console.log(url);
   const urlQuery = new URL(url);
   if (!data || data.size === 0) return urlQuery;
   for (const [key, value] of data) {

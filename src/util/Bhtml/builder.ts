@@ -1,422 +1,50 @@
-import {
-  appendStringToString,
-  appendArrayToArray,
-  appendRecordToMap,
-  setRecordValueToMap,
-  removeValuesInArray,
-  parseInput,
-  isNothing,
-  isRegistryItem,
-  applyProps,
-  appendNode,
-  unwrapBuiltIfKeyUndefined,
-} from "./utils.js";
+import { isNothing } from "./utils.js";
 
 import { Built } from "./built.js";
 import { Tag } from "./index.js";
 
-import { descriptor } from "./bhtml.js";
-
-import {
-  FutureChildNode,
-  PotentialFutureChildNode,
-  InputValues,
-  Nothing,
-  ChildrenProps,
-} from "./index.js";
-
-export interface BuilderProps {
-  cache: string | null;
-  id: string | null;
-  className: Array<string> | null;
-  attributes: Map<string, string> | null;
-  data: Map<string, string> | null;
-  events: Map<
-    string | symbol,
-    [
-      keyof HTMLElementEventMap,
-      EventListener,
-      boolean | AddEventListenerOptions
-    ]
-  > | null;
-  abortControllers: Map<string, AbortController> | null;
-  childrenProps: ChildrenProps | null;
-}
-
 export class Builder {
-  tagName?: keyof HTMLElementTagNameMap;
-  cleared: boolean;
-  props: BuilderProps;
-  childNodes: Array<string | HTMLElement | [string, string | Built<Tag>]>;
-  constructor() {
-    this.cleared = false;
-    this.props = {
-      cache: null,
-      id: null,
-      className: null,
-      attributes: null,
-      data: null,
-      events: null,
-      abortControllers: null,
-      childrenProps: null,
-    };
-    this.childNodes = new Array();
-  }
+    #tagName?: keyof HTMLElementTagNameMap;
+    #cache?: string;
+    constructor() { }
 
-  [Symbol.iterator]() {
-    return (this.childNodes || [])[Symbol.iterator]();
-  }
+    static cleared: boolean = false;
 
-  static builder = new Builder();
+    static builder = new Builder();
 
-  static getBuilder() {
-    return Builder.builder.cleared ? Builder.builder : new Builder();
-  }
-
-  static cache = new Map<string, Built<Tag>>();
-
-  cache(v: string | Nothing) {
-    if (isNothing(v)) return this;
-    this.props.cache = v;
-    return this;
-  }
-
-  cached(v: string) {
-    return Builder.cache.get(v);
-  }
-
-  tag<Tag extends keyof HTMLElementTagNameMap>(tagName: Tag) {
-    this.tagName = tagName;
-    const build = Object.create(this);
-    Object.defineProperty(build, "build", descriptor(builder.build));
-    return build as Builder & {
-      build: () => Built<Tag>;
-    };
-  }
-
-  // tag(v: string) {
-  //   this.props.tag = v;
-  //   Object.defineProperty(this, "build", descriptor(builder.build));
-  //   // @ts-ignore
-  //   return this as Builder & { build: typeof builder.build };
-  // }
-
-  id(v: InputValues["id"]) {
-    if (v === "") return this;
-    this.props.id = appendStringToString(this.props.id, v);
-    return this;
-  }
-
-  className(v: InputValues["className"]) {
-    if (isNothing(v) || v === "") return this;
-    const uniqueClasses = Array.from(new Set(v.split(" ")));
-    this.props.className = appendArrayToArray(
-      this.props.className,
-      uniqueClasses
-    );
-    return this;
-  }
-
-  removeClasses(v: InputValues["className"]) {
-    if (isNothing(v) || v === "") return this;
-    const uniqueClasses = Array.from(new Set(v.split(" ")));
-    this.props.className = removeValuesInArray(
-      this.props.className,
-      uniqueClasses
-    );
-    return this;
-  }
-
-  childrenClassName(ar: "add" | "remove", v: InputValues["className"]) {
-    if (isNothing(v) || v === "") return this;
-    if (!this.props.childrenProps) this.props.childrenProps = {};
-    const uniqueClasses = Array.from(new Set(v.split(" ")));
-    // save/remove classes to be applied to all future elements
-    if (ar === "add") {
-      this.props.childrenProps.className =
-        appendArrayToArray(
-          this.props.childrenProps.className || null,
-          uniqueClasses
-        ) || undefined;
-    } else {
-      this.props.childrenProps.className =
-        removeValuesInArray(
-          this.props.childrenProps.className || null,
-          uniqueClasses
-        ) || undefined;
+    static getBuilder() {
+        return Builder.cleared ? Builder.builder : new Builder();
     }
-    // Add/Remove the className to/from all current childNodes.
-    this.childNodes?.forEach((kv) => {
-      if (typeof kv === "string") return;
-      for (const c of uniqueClasses) {
-        if (kv instanceof HTMLElement) {
-          kv.classList[ar](c);
-          continue;
-        }
-        const [_k, v] = kv;
-        if (typeof v === "string") continue;
-        v.elem.classList[ar](c);
-      }
-    });
-    return this;
-  }
 
-  attribute(key: string, v: InputValues["attribute"]) {
-    if (isNothing(v)) return this;
-    this.props.attributes = setRecordValueToMap(this.props.attributes, key, v);
-    return this;
-  }
+    static cache = new Map<any, Built<Tag>>();
 
-  attributes(v: InputValues["attributes"]) {
-    this.props.attributes = appendRecordToMap(this.props.attributes, v);
-    return this;
-  }
-
-  removeAttribute(key: string) {
-    this.props.attributes?.delete(key);
-    return this;
-  }
-
-  on<K extends keyof HTMLElementEventMap>(
-    type: K,
-    listener: (e: HTMLElementEventMap[K]) => void,
-    options?: boolean | AddEventListenerOptions,
-    key?: string
-  ) {
-    this.props.events = this.props.events || new Map();
-    if (!isNothing(key)) {
-      const abortController = new AbortController();
-      options =
-        typeof options === "boolean"
-          ? { signal: abortController.signal }
-          : { ...options, signal: abortController.signal };
-      this.props.abortControllers = this.props.abortControllers || new Map();
-      this.props.abortControllers.set(key, abortController);
-      this.props.events.set(key, [type, listener as EventListener, options]);
-      return this;
+    cache(v: any) {
+        if (isNothing(v)) return this;
+        this.#cache = v;
+        return this;
     }
-    this.props.events.set(Symbol(), [
-      type,
-      listener as EventListener,
-      options || false,
-    ]);
-    return this;
-  }
 
-  removeEvent(key: string) {
-    this.props.events?.delete(key);
-    this.props.abortControllers?.delete(key);
-    return this;
-  }
-
-  childNode(v: PotentialFutureChildNode, key?: string) {
-    if (isNothing(v)) return this;
-    v = parseInput(Builder.getBuilder(), v);
-    if (v instanceof Built) {
-      const elem = v.elem;
-      this.props?.childrenProps?.className?.forEach((c) =>
-        elem.classList.add(c)
-      );
+    cached(v: string) {
+        return Builder.cache.get(v);
     }
-    const kv = unwrapBuiltIfKeyUndefined(key, v);
-    this.childNodes.push(kv);
 
-    return this;
-  }
-
-  getIndex(where: string | number) {
-    if (!this.childNodes) return undefined;
-    where =
-      typeof where === "string"
-        ? this.childNodes
-            .filter((v): v is [string, string | Built<Tag>] => Array.isArray(v))
-            .findIndex(([k, _v]) => k === where)
-        : where;
-    if (where === -1) return undefined;
-    return where;
-  }
-
-  remove(where: string | number) {
-    if (!this.childNodes) return this;
-    const index = this.getIndex(where);
-    if (!index) return this;
-    this.childNodes.splice(index, 1);
-    return this;
-  }
-
-  replace(where: string | number, v: PotentialFutureChildNode, key?: string) {
-    if (!this.childNodes) return this;
-    if (isNothing(v)) return this;
-    const index = this.getIndex(where);
-    if (!index) return this;
-    v = parseInput(Builder.getBuilder(), v);
-    const kv = unwrapBuiltIfKeyUndefined(key, v);
-    this.childNodes.splice(index, 1, kv);
-    return this;
-  }
-
-  modify(
-    where: string | number,
-    fn: (futureChildNode: FutureChildNode) => FutureChildNode
-  ) {
-    if (!this.childNodes) return this;
-    if (isNothing(fn)) return this;
-    const index = this.getIndex(where);
-    if (!index) return this;
-    const [key, childNode] = this[index];
-    const modified = fn(childNode);
-    this.childNodes[index] = [key, modified];
-    return this;
-  }
-
-  insert(
-    ba: "before" | "after",
-    where: string | number,
-    v: PotentialFutureChildNode,
-    key?: string
-  ) {
-    if (!this.childNodes) return this;
-    if (isNothing(v)) return this;
-    const index = this.getIndex(where);
-    if (!index) return this;
-    v = parseInput(Builder.getBuilder(), v);
-    const kv = unwrapBuiltIfKeyUndefined(key, v);
-    if (ba === "after" && index === this.childNodes.length) {
-      this.childNodes.push(kv);
-      return this;
+    tag<T extends keyof HTMLElementTagNameMap>(tagName: T) {
+        this.#tagName = tagName;
+        return this.#build() as Built<T>;
     }
-    if (ba === "before" && index === 0) {
-      this.childNodes.unshift(kv);
-      return this;
-    }
-    ba === "after"
-      ? this.childNodes.splice(index + 1, 0, kv)
-      : this.childNodes.splice(index, 0, kv);
-    return this;
-  }
 
-  clear(k?: keyof BuilderProps | "childNodes") {
-    if (k === "childNodes") {
-      this.childNodes.length = 0;
-      return this;
+    clear() {
+        this.#tagName = undefined;
+        this.#cache = undefined;
+        Builder.cleared = true;
     }
-    if (!k) {
-      for (const k in this.props) this.props[k] = null;
-      this.childNodes.length = 0;
-      this.cleared = true;
-      return this;
+
+    #build() {
+        const elem = document.createElement(this.#tagName || "div");
+        const built = new Built(elem);
+        built.kind = this.#tagName || "div";
+        if (this.#cache) Builder.cache.set(this.#cache, built);
+        this.clear();
+        return built;
     }
-    this.props[k] = null;
-    return this;
-  }
 }
-
-function build(this: Builder) {
-  // We are going to separate out some special properties to to special things with
-  // them. The rest will be added to the HTMLElement created below in 'applyProps'.
-
-  // AbortControllers who's signal was added in elem.addEventlistener inside 'applyProps'.
-  // These will be used in the returned Built object to remove events that are added here.
-  let { cache, abortControllers, childrenProps, ...rest } = this.props;
-  // The freshly made HTMLElement
-  const elem = document.createElement(this.tagName || "div");
-  // Gather all the information about childNodes that will be needed in the returned
-  // Built object.
-  let builtRegistry: Map<string, Text | Built<Tag>> | undefined;
-  if (this.childNodes) {
-    builtRegistry = new Map();
-    for (const item of this.childNodes) {
-      // Identify registry items that were added without a key. By
-      // creating a key/value tuple with key undefined for items that are
-      // not already key/value tuples. A destructure assignment of the tuple
-      // to better identify the items that didn't get a key, and
-      // handle the value.
-      const [k, v]:
-        | [string, string | Built<Tag>]
-        | [undefined, string | HTMLElement] = Array.isArray(item)
-        ? item
-        : [undefined, item];
-      const node = appendNode(elem, v, k);
-      // Don't include items that where not given keys.
-      // Don't include HTMLElements that were unwrapped out of Builts.
-      // into the registry.
-      if (k !== undefined && isRegistryItem(node)) builtRegistry.set(k, node);
-    }
-  }
-  // Add id, classes attributes to the freshly made HTMLElement.
-  applyProps(elem, rest);
-  // This might need a special Built
-  const built = new Built(
-    elem,
-    builtRegistry,
-    childrenProps || undefined,
-    abortControllers || undefined
-  );
-  built.kind = this.tagName || "div";
-  // Cache this build so that we might not have to do all the above again.
-  if (cache) Builder.cache.set(cache, built);
-  // Clear out all the BuilderProperties and childNodes so that this Builder can continue to be used.
-  this.clear();
-  return built;
-}
-
-export const builder = <{ build: typeof build }>Object.defineProperty(
-  {},
-  "build",
-  {
-    writable: false,
-    enumerable: false,
-    configurable: false,
-    value: build,
-  }
-);
-
-// export const builder = {
-//   build(this: Builder) {
-//     // We are going to separate out some special properties to to special things with
-//     // them. The rest will be added to the HTMLElement created below in 'applyProps'.
-
-//     // AbortControllers who's signal was added in elem.addEventlistener inside 'applyProps'.
-//     // These will be used in the returned Built object to remove events that are added here.
-//     let { tag, cache, abortControllers, childrenProps, ...rest } = this.props;
-//     // The freshly made HTMLElement
-//     const elem = document.createElement(tag || "div");
-//     // Gather all the information about childNodes that will be needed in the returned
-//     // Built object.
-//     let builtRegistry: Map<string, Text | Build> | undefined;
-//     if (this.childNodes) {
-//       builtRegistry = new Map();
-//       for (const item of this.childNodes) {
-//         // Identify registry items that were added without a key. By
-//         // creating a key/value tuple with key undefined for items that are
-//         // not already key/value tuples. A destructure assignment of the tuple
-//         // to better identify the items that didn't get a key, and
-//         // handle the value.
-//         const [k, v]:
-//           | [string, string | Build]
-//           | [undefined, string | HTMLElement] = Array.isArray(item)
-//           ? item
-//           : [undefined, item];
-//         const node = appendNode(elem, v, k);
-//         // Don't include items that where not given keys.
-//         // Don't include HTMLElements that were unwrapped out of Builts.
-//         // into the registry.
-//         if (k !== undefined && isRegistryItem(node)) builtRegistry.set(k, node);
-//       }
-//     }
-//     // Add id, classes attributes to the freshly made HTMLElement.
-//     applyProps(elem, rest);
-//     // This might need a special Built
-//     const built = new Built(
-//       elem,
-//       builtRegistry,
-//       childrenProps || undefined,
-//       abortControllers || undefined
-//     );
-//     // Cache this build so that we might not have to do all the above again.
-//     if (cache) Builder.cache.set(cache, built);
-//     // Clear out all the BuilderProperties and childNodes so that this Builder can continue to be used.
-//     this.clear();
-//     return built;
-//   },
-// };
