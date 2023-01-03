@@ -165,7 +165,7 @@ interface LableAttributes extends GlobalAttributes {
 }
 
 export const labelB = (b: Builder, text: string, attr: LableAttributes) =>
-  b.tag("label").childNode(text).attributes(attr);
+  b.tag("label").append(text).attributes(attr);
 
 export const textInputB = (b: Builder, props: TextInputAttributes) =>
   b
@@ -193,7 +193,7 @@ export const lableTextInputB = (
 ) => {
   const input = textInputB(b, attr).className("mt-2");
   return labelB(b, labelText, attr)
-    .childNode(input, "input")
+    .append(input, "input")
     .className("flex flex-col");
 };
 
@@ -203,10 +203,10 @@ export const formB = (b: Builder) =>
 
 // Text ----------------------------
 export const h1B = (b: Builder, text: string, attr?: GlobalAttributes) =>
-  b.tag("h1").childNode(text).attributes(attr).className("text-2xl");
+  b.tag("h1").append(text).attributes(attr).className("text-2xl");
 
 export const h2B = (b: Builder, text: string, attr?: GlobalAttributes) =>
-  b.tag("h2").childNode(text).attributes(attr).className("text-xl");
+  b.tag("h2").append(text).attributes(attr).className("text-xl");
 
 // Interactive ---------------------
 const buttonClassName = "cursor-pointer py-1 px-3 rounded-sm";
@@ -227,24 +227,7 @@ export const submitInputB = (
 export const buttonB = (b: Builder, text: string, attr?: GlobalAttributes) =>
   b
     .tag("button")
-    .childNode(text, "text")
+    .append(text, "text")
     .className(buttonClassName)
     .attributes(attr);
 // ---------------------------------
-
-// class Form {
-//   form: Built<HTMLFormElement>
-//   constructor(b: Builder, attr: FormAttributes ) {
-//     const form = b.tag("form").attributes(attr).build();
-//     this.form = form;
-//   }
-//   label(text: string, attr: LableAttributes) {
-//     this.form.childNode((b) =>
-//       b.tag("label").childNode(text).attributes(attr).build()
-//     );
-//     return this;
-//   }
-//   textInput(attr: TextInputAttributes) {
-//     this.form.childNode((b) => b.tag("input").attributes(attr).build())
-//   }
-// }

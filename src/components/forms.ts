@@ -10,7 +10,7 @@ const reportValidity = (e: Event) =>
   (e.target as HTMLInputElement).reportValidity();
 
 const lableInputNamePassword = (b: Builder) => {
-  const nameLable = b.tag("label").childNode("Name:");
+  const nameLable = b.tag("label").append("Name:");
   const nameInput = b
     .tag("input")
     .attributes({
@@ -28,8 +28,8 @@ const lableInputNamePassword = (b: Builder) => {
     .on("input", reportValidity);
   nameLable
     .className("flex flex-col")
-    .childNode(nameInput.className(inputClassName));
-  const passLable = b.tag("label").childNode("Password:");
+    .append(nameInput.className(inputClassName));
+  const passLable = b.tag("label").append("Password:");
   const passInput = b
     .tag("input")
     .attributes({
@@ -43,14 +43,14 @@ const lableInputNamePassword = (b: Builder) => {
     .on("input", reportValidity);
   passLable
     .className("flex flex-col")
-    .childNode(passInput.className(inputClassName), "input");
+    .append(passInput.className(inputClassName), "input");
 
   return [nameLable, passLable];
 };
 
 export const createAccForm = (b: Builder, p: Page) => {
   const [nameLable, passwordLable] = lableInputNamePassword(b);
-  const confirmPassLable = b.tag("label").childNode("Confirm password:");
+  const confirmPassLable = b.tag("label").append("Confirm password:");
   const confirmPassInput = b.tag("input").attributes({
     type: "password",
     title: "Rewrite password to confirm your password.",
@@ -67,7 +67,7 @@ export const createAccForm = (b: Builder, p: Page) => {
   });
   confirmPassLable
     .className("flex flex-col")
-    .childNode(confirmPassInput.className(inputClassName));
+    .append(confirmPassInput.className(inputClassName));
 
   const submitInput = b
     .tag("input")
@@ -76,10 +76,10 @@ export const createAccForm = (b: Builder, p: Page) => {
   return b
     .tag("form")
     .className("flex flex-col space-y-3 max-w-lg")
-    .childNode(nameLable)
-    .childNode(passwordLable)
-    .childNode(confirmPassLable)
-    .childNode(submitInput.className(submitClassName).className(accent));
+    .append(nameLable)
+    .append(passwordLable)
+    .append(confirmPassLable)
+    .append(submitInput.className(submitClassName).className(accent));
 };
 
 export const signInForm = (b: Builder, p: Page) => {
@@ -91,13 +91,13 @@ export const signInForm = (b: Builder, p: Page) => {
   return b
     .tag("form")
     .className("flex flex-col space-y-3 max-w-lg")
-    .childNode(nameLableInput)
-    .childNode(passwordLableInput)
-    .childNode(submitInput.className(submitClassName).className(accent));
+    .append(nameLableInput)
+    .append(passwordLableInput)
+    .append(submitInput.className(submitClassName).className(accent));
 };
 
 export const createForumForm = (b: Builder, p: Page) => {
-  const nameLable = b.tag("label").childNode("Name:");
+  const nameLable = b.tag("label").append("Name:");
   const nameInput = b
     .tag("input")
     .attributes({
@@ -113,7 +113,7 @@ export const createForumForm = (b: Builder, p: Page) => {
     .on("input", reportValidity);
   nameLable
     .className("flex flex-col")
-    .childNode(nameInput.className(inputClassName));
+    .append(nameInput.className(inputClassName));
 
   const submitInput = b
     .tag("input")
@@ -122,8 +122,8 @@ export const createForumForm = (b: Builder, p: Page) => {
   return b
     .tag("form")
     .className("flex flex-col space-y-3 max-w-lg")
-    .childNode(nameLable)
-    .childNode(submitInput.className(submitClassName).className(accent));
+    .append(nameLable)
+    .append(submitInput.className(submitClassName).className(accent));
 };
 
 export const sendMessageForm = (forum_id: string, p: Page, b: Builder) => {
@@ -135,7 +135,7 @@ export const sendMessageForm = (forum_id: string, p: Page, b: Builder) => {
     .tag("input")
     .attributes({ type: "hidden", name: "forum_hex_id", value: forum_id });
   const id = "sendMessageInput";
-  const messageLable = b.tag("label").attribute("for", id).childNode(user);
+  const messageLable = b.tag("label").attribute("for", id).append(user);
   const messageInput = b
     .tag("textarea")
     .id(id)
@@ -156,13 +156,13 @@ export const sendMessageForm = (forum_id: string, p: Page, b: Builder) => {
   return b
     .tag("form")
     .className("flex")
-    .childNode(
+    .append(
       messageLable.className("px-3 py-2 flex items-center").className(dark)
     )
-    .childNode(userInputHidden)
-    .childNode(forumIdHiddenInput)
-    .childNode(messageInput.className("w-full p-2 mx-1").className(dark))
-    .childNode(
+    .append(userInputHidden)
+    .append(forumIdHiddenInput)
+    .append(messageInput.className("w-full p-2 mx-1").className(dark))
+    .append(
       submitInput
         .className("px-3 py-2 rounded-sm cursor-pointer")
         .className(mid)
