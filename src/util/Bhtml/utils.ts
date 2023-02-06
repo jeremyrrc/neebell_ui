@@ -1,5 +1,5 @@
-import { Built, Nothing, ToChild} from "./built.js";
-import { Builder } from "./builder.js";
+import { Built, Nothing } from "./built.js";
+import { isSignal, ToChild, getBuild } from "./builder.js";
 
 export const isNothing = (v: any): v is Nothing =>
   v === null || v === undefined;
@@ -61,7 +61,9 @@ export const setRecordValueToMap = <V>(
 };
 
 // This is where any conversion of the user input happens.
-export const processToChild = (v: ToChild): Text | Comment | Built =>  {
+export const processToChild = (v: ToChild): Text | Comment | Built => {
+  if (v instanceof Built) return v;
+  v = (isSignal(v)) ? v.value : v;
   switch (typeof v) {
     case "string":
       return document.createTextNode(v);
@@ -70,13 +72,16 @@ export const processToChild = (v: ToChild): Text | Comment | Built =>  {
     case "undefined":
       return document.createComment("")
     case "function":
-      return v(Builder.getBuilder()) as Built 
+      const r = v(getBuild())
+      if ("build" in r) return r.build()
+      return r;
   }
-  return v as Built;
+  if ("build" in v) return v.build()
+  return v;
 };
 
 // used in Builder.modify
-export const deprocess = (v: Text | Comment | Built): string | undefined | Built =>  {
+export const deprocess = (v: Text | Comment | Built): string | undefined | Built => {
   if (v instanceof Text) return v.data;
   if (v instanceof Comment) return undefined
   return v;

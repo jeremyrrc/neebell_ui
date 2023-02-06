@@ -30,7 +30,7 @@ interface ValidationError {
 interface NetworkError {
   type: "network";
   error: unknown;
-  message: string;
+  message: unknown;
 }
 
 export type Error = ServerError | ValidationError | NetworkError;
@@ -105,13 +105,14 @@ export class Bfetch {
     };
   }
 
-  #inputToParams(v: Input | Nothing): Map<string, DataValue> | null {
+  inputToParams(v: Input | Nothing): Map<string, DataValue> | null {
     if (v === null || v === undefined) return null;
     let params;
     if (v instanceof Event) {
       const input = v.target;
       if (
         !(input instanceof HTMLInputElement) &&
+        !(input instanceof HTMLButtonElement) &&
         !(input instanceof HTMLTextAreaElement)
       )
         return null;
@@ -173,7 +174,7 @@ export class Bfetch {
       this.props.params = params.size !== 0 ? params : null;
       return this;
     }
-    const params = this.#inputToParams(v);
+    const params = this.inputToParams(v);
     if (!params) return this;
     this.props.params = appendMapToMap(this.props.params, params);
     return this;
@@ -295,12 +296,13 @@ export class Bfetch {
         this.clear();
         return response;
       }
+      const message = await response.text();
 
       const serverError: ServerError = {
         type: "server",
         code: response.status,
         response,
-        message: response.statusText,
+        message: message,
       };
 
       const codeErrorCatchers = catchCodeError
