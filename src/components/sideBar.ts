@@ -1,8 +1,7 @@
-import { createEffect, Build } from "../util/Bhtml/builder.js";
-import { h2Build, buttonBuild } from "../components/base.js";
+import { createEffect, Build, built } from "../util/Bhtml/builder.js";
 import { mid, dark } from "../page.js";
 import {
-  user,
+  mainUser,
   sign_out,
   forumListOwned,
   forumListPermitted,
@@ -12,8 +11,11 @@ import {
   forumsMenuHeader,
   bfetch,
 } from "../page.js";
-import { top } from "./top.js";
-import { changeMain, unselectTab } from "./main.js";
+import { sideBar } from "./top.js";
+import { changeMain } from "./main.js";
+// import { openTabs } from "./openTabs.js";
+
+const buttonClasses = "cursor-pointer py-1 px-3 rounded-sm"
 
 type WhatSideBar =
   | "signed in"
@@ -21,14 +23,14 @@ type WhatSideBar =
 export const changeSideBar = (what: WhatSideBar) => {
   switch (what) {
     case "signed out":
-      top.sideBar
+      sideBar
         .replace("h2", undefined)
         .replace("sidemenu", signedOutSideBarMenu)
         .replace("forums", undefined)
       break;
     case "signed in":
-      top.sideBar
-        .replace("h2", h2Build(user))
+      sideBar
+        .replace("h2", built("h2", mainUser))
         .replace("sidemenu", signedInSideBarMenu)
         .replace("forums", sideBarForumsMenu);
       break;
@@ -39,24 +41,29 @@ export const signedOutSideBarMenu = (b: Build) => {
   return b.cache("signedOutSideBarMenuBlt", make);
 
   function make() {
-    const createAccButton = buttonBuild("Create Account")(b)
+    const createAccButton = built("button",
+      "Create Account"
+    )
+      .attribute("type", "button")
+      .className(buttonClasses)
       .className(mid)
       .on("click", () => {
         changeMain("create account");
       })
-    const signInButton = buttonBuild("Sign In")(b)
+
+    const signInButton = built("button",
+      "Sign In"
+    )
+      .className(buttonClasses)
       .className(mid)
       .on("click", () => {
         changeMain("sign in");
       })
 
-    return b
-      .tag("nav")
-      .nodeArgs(
-        createAccButton,
-        signInButton
-      )
-      .build()
+    return built("nav",
+      createAccButton,
+      signInButton
+    )
       .className("flex flex-col space-y-3")
   }
 };
@@ -65,74 +72,90 @@ export const signedInSideBarMenu = (b: Build) => {
   return b.cache("signedInSideBarMenu", make)
 
   function make() {
-    const signOutButton = buttonBuild("Sign Out")(b)
+    const signOutButton = built("button",
+      "Sign Out"
+    )
+      .className(buttonClasses)
+      .className(mid)
+      .attribute("type", "button")
       .on("click", () => sign_out())
-      .className(mid)
 
-    const createForumButton = buttonBuild("Create New Forum")(b)
+    const createForumButton = built("button",
+      "Create New Forum"
+    )
+      .className(buttonClasses)
+      .className(mid)
       .on("click", () => changeMain("create forum"))
-      .className(mid)
 
-    const listOwnedForums = buttonBuild("Owned Forums")(b)
+    const listOwnedForums = built("button",
+      "Owned Forums"
+    )
+      .className(buttonClasses)
+      .className(mid)
+      .attribute("type", "button")
       .on("click", forumListOwned)
-      .className(mid)
 
-    const listPermittedForums = buttonBuild("Permitted Forums")(b)
+    const listPermittedForums = built("button",
+      "Permitted Forums"
+    )
+      .className(buttonClasses)
+      .className(mid)
+      .attribute("type", "button")
       .on("click", forumListPermitted)
-      .className(mid)
 
-    return b
-      .tag("nav")
-      .nodeArgs(
-        signOutButton,
-        createForumButton,
-        listOwnedForums,
-        listPermittedForums
-      )
-      .build()
+    return built("nav",
+      signOutButton,
+      createForumButton,
+      listOwnedForums,
+      listPermittedForums
+    )
       .className("flex flex-col space-y-3")
   }
 };
 
-const forumButton = (forumItem: ForumListItem) => (b: Build) => buttonBuild(forumItem.name)(b)
-  .on("click", () => {
-    unselectTab(currentForum.value?._id.$oid);
-    bfetch
-      .method("GET")
-      .url("/forum/forum?f=" + forumItem._id.$oid)
-      .onSuccess(async (r) => {
-        const data = await r.json() as { permitted_users: Array<string> };
-        currentForum.value = { ...forumItem, ...data }
-        changeMain("forum")
-      })
-      .send();
-  })
-  .className(dark)
 
 export const sideBarForumsMenu = (b: Build) => {
   return b.cache("sideBarForumsMenu", make)
 
   function make() {
-    const head = h2Build(forumsMenuHeader)(b)
-    const nav = b
-      .tag("nav")
-      .build()
+    const head = built("h2",
+      forumsMenuHeader
+    )
+
+    const nav = built("nav")
       .className("flex flex-col space-y-3")
 
+    const forumButton = (forumItem: ForumListItem) => built("button",
+      forumItem.name
+    )
+      .attribute("type", "button")
+      .on("click", () => {
+        // openTabs.unselectTab(currentForum.value?._id.$oid);
+        bfetch
+          .method("GET")
+          .url("/forum/forum?f=" + forumItem._id.$oid)
+          .onSuccess(async (r) => {
+            const data = await r.json() as { permitted_users: Array<string> };
+            console.log(data);
+            currentForum.value = { ...forumItem, ...data }
+            changeMain("forum")
+          })
+          .send();
+      })
+      .className(buttonClasses)
+      .className(dark)
+
     createEffect(() => {
-      nav.removeChildren();
+      nav.removeNodes();
       for (const forumItem of forumListSelection.value) {
-        nav.append(forumButton(forumItem))
+        nav.addNodes(forumButton(forumItem))
       }
     })
 
-    return b
-      .tag("section")
-      .nodeArgs(
-        head,
-        nav
-      )
-      .build()
+    return built("section",
+      head,
+      nav
+    )
       .className("space-y-3")
   }
 };

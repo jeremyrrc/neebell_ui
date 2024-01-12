@@ -1,5 +1,4 @@
 import { Built, Tag } from "./built.js";
-import { processToChild } from "./utils.js";
 
 export type Id<O> = O extends infer U ? { [K in keyof U]: U[K] } : never;
 
@@ -7,35 +6,21 @@ type RemoveIndex<T> = {
   [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K]
 };
 
-export type B<T extends Tag = Tag, Children = {}> = Built<T, Children>
-
-type Values = undefined | string | number | B
-
-export type Signal<T> = {
-  id: symbol,
-  value: T
-}
-
-export type ToChild =
-  | B
+export type ToNode =
+  | Built
   | string
   | number
   | undefined
-  | Signal<Values>
-  | { build: () => B }
-  | ((b: Build) => B | { build: () => B })
+  | Signal<undefined | string | number | Built>
+  | { build: () => Built }
+  | ((b: Build) => Built | { build: () => Built })
 
-type ToChildren = readonly ([string, ToChild] | ToChild)[]
+type ToNodeKeyed = [string, ToNode] | ToNode;
 
-type BuilderInput = ToChildren | ((b: Build) => ToChildren);
+export type ToNodesKeyed = readonly ToNodeKeyed[]
 
-type GetToChildren<I extends BuilderInput> =
-  I extends ToChildren ? I :
-  I extends (b: Build) => infer R ? R :
-  never;
-
-export type Child<C extends ToChild> =
-  C extends B ? C :
+export type ProccessedNode<C extends ToNode> =
+  C extends Built ? C :
   C extends string ? string :
   C extends number ? number :
   C extends undefined ? undefined :
@@ -48,24 +33,29 @@ type Key<Tup> =
   Tup extends [infer U, any] ? U :
   never;
 
-type Value<Tup> =
+export type Value<Tup> =
   Tup extends [any, infer U] ? U :
   never;
 
-type Get<K, A extends ToChildren> = {
+type GetValue<K, A extends ToNodesKeyed> = {
   [I in keyof A]:
   K extends Key<A[I]> ? Value<A[I]> :
   never;
 }[number]
 
-type KeyNames<A extends ToChildren> = {
+type KeyNames<A extends ToNodesKeyed> = {
   [P in keyof A]: Key<A[P]>;
 }[number];
 
 
-type Children<A extends ToChildren> = Id<RemoveIndex<{
-  [K in KeyNames<A>]: Child<Get<K, A>>
+type ProccessedNodesKeyed<A extends ToNodesKeyed> = Id<RemoveIndex<{
+  [K in KeyNames<A>]: ProccessedNode<GetValue<K, A>>
 }>>
+
+export type Signal<T> = {
+  id: symbol,
+  value: T
+}
 
 const context: (() => void)[] = [];
 
@@ -88,7 +78,6 @@ export function signal<T>(value: T) {
   const subscribers = new Set<() => void>();
   return {
     id,
-
     get value() {
       const current = context[context.length - 1];
       if (current) subscribers.add(current);
@@ -111,14 +100,10 @@ export function signal<T>(value: T) {
 export interface Build<TagName extends Tag = Tag, Nodes = {}> {
   cache: <T>(key: string, make: () => T) => T
 
-  tagName?: Tag
   tag: <T extends Tag>(t: T) => Build<T, Nodes>
 
-  // elem?: HTMLElement
-  nodes?: ToChildren
-  nodeArgs: <C extends ToChildren>(...c: [...C]) => Build<TagName, Children<C>>
-  nodeArray: <C extends ToChildren>(c: C) => Build<TagName, Children<C>>
-  returnNodeArray: <C extends ToChildren>(fn: (b: Build) => C) => Build<TagName, Children<C>>
+  // element: (tn: Tag, c: ToNodes) => Build<TagName, Nodes>
+  nodes: <C extends ToNodesKeyed>(...c: [...C]) => Built<TagName, ProccessedNodesKeyed<C>>
 
   clear: () => Build<Tag, {}>
 
@@ -133,6 +118,14 @@ export function getBuild() {
   return build.clear();
 };
 
+const builtBuild = Builder();
+
+export const built = <T extends Tag, N extends ToNodesKeyed>(tag: T, ...nodes: N) => builtBuild
+  .tag(tag)
+  .nodes(...nodes)
+
+// const test = built("div", <["hello", string]>["hello", "world"])
+
 export function Builder(): Build {
   return {
     cache<T>(key: string, make: () => T) {
@@ -145,89 +138,96 @@ export function Builder(): Build {
 
     tag<T extends Tag>(t: T) {
       this.tagName = t;
-      return this as Build<T>;
-    },
-
-    nodeArgs(...c: [...ToChildren]) {
-      this.nodes = c;
-      return this
-    },
-
-    nodeArray(c: ToChildren) {
-      this.nodes = c;
       return this;
     },
 
-    returnNodeArray(fn: (b: Build) => ToChildren) {
-      const c = fn(getBuild());
-      this.nodes = c;
-      return this;
+    nodes(...c: ToNodesKeyed) {
+      this.toNodes = c;
+      return this.build()
     },
 
     clear() {
-      this.tagName, this.nodes = undefined;
+      this.tagName, this.toNodes = undefined;
       return this;
     },
 
     build() {
-      const built = makeBuilt(this.tagName, this.nodes);
+      const built = makeBuilt(this.tagName, this.toNodes);
       this.clear();
       return built;
     }
   }
 }
 
-function makeBuilt(tagName: string | undefined, nodes: ToChildren | undefined) {
+type Registry = Map<string, Text | Comment | Built>
+
+function makeBuilt(tagName: string | undefined, nodes: ToNodesKeyed | undefined) {
   const elem = document.createElement(tagName || "div");
-  const tup = nodes ? tupRegistrySignals(elem, nodes) : nodes;
-  return builtReactive(elem, tup);
+  const registry = nodes ? addNodesMakeRegistry(elem, nodes) : nodes;
+  return new Built(elem, registry);
 }
 
-function builtReactive(elem: HTMLElement, tup: readonly [Map<any, any>, Map<any, any>] | undefined) {
-  if (tup) {
-    const [registry, signals] = tup;
-    const built = new Built(elem, registry)
-
-    for (const [key, value] of signals) {
-      createEffect(() => {
-        // @ts-ignore
-        built.replace(key, value.value)
-      })
-    }
-    return built;
+// This is where any conversion of the user input happens.
+export const makeRegistryItem = (v: ToNode): Text | Comment | Built => {
+  if (v instanceof Built) return v;
+  v = (isSignal(v)) ? v.value : v;
+  switch (typeof v) {
+    case "string":
+      return document.createTextNode(v);
+    case "number":
+      return document.createTextNode(v.toString())
+    case "undefined":
+      return document.createComment("")
+    case "function":
+      const r = v(getBuild())
+      if ("build" in r) return r.build()
+      return r;
   }
-  return new Built(elem, tup)
+  if ("build" in v) return v.build()
+  return v;
+};
+
+export function proccessToNode(toNode: ToNode) {
+  const registryItem = makeRegistryItem(toNode)
+  let node = registryItem instanceof Built ? registryItem.elem : registryItem;
+  if (isSignal(toNode)) {
+    createEffect(() => {
+      const reproccessedSignal = makeRegistryItem(toNode.value)
+      const newNode = reproccessedSignal instanceof Built ? reproccessedSignal.elem : reproccessedSignal;
+      node.replaceWith(newNode);
+      node = newNode;
+    })
+  }
+  return [node, registryItem] as const
 }
 
-function tupRegistrySignals(elem: HTMLElement, c: ToChildren) {
-  let registry = new Map();
-  let signals = new Map();
-  for (const k of c) {
-    let key, value;
-    if (Array.isArray(k)) {
-      key = k[0];
-      value = k[1];
+export function addToNode(elem: HTMLElement, toNode: ToNode) {
+  let [node, registryItem] = proccessToNode(toNode);
+  elem.appendChild(node);
+  return registryItem;
+}
+
+function addNodesMakeRegistry(elem: HTMLElement, toNodesKeyed: ToNodesKeyed): Registry {
+  let registry: Registry = new Map();
+  for (const toNodeKeyed of toNodesKeyed) {
+    let key: undefined | string, toNode: ToNode;
+    if (Array.isArray(toNodeKeyed)) {
+      key = toNodeKeyed[0];
+      toNode = toNodeKeyed[1];
     } else {
-      value = k;
+      toNode = toNodeKeyed;
     }
-    const processedChild = processToChild(value)
-    const node = processedChild instanceof Built ? processedChild.elem : processedChild;
-    elem.appendChild(node);
-    if (isSignal(value)) {
-      if (!key) key = signals.size + 1;
-      signals.set(key, value)
-    }
+    const registryItem = addToNode(elem, toNode);
     if (!key) continue;
-    registry.set(key, processedChild);
+    registry.set(key, registryItem);
   }
-  return [registry, signals] as const;
+  return registry;
 }
 
-export const startAt = <C extends BuilderInput>(
+export const startAt = <N extends ToNodesKeyed>(
   elem: HTMLElement,
-  children: C,
+  ...nodes: N
 ) => {
-  const c = ((typeof children === "function") ? children(Builder()) : children) as ToChildren;
-  const tup = tupRegistrySignals(elem, c);
-  return builtReactive(elem, tup) as Built<Tag, Children<GetToChildren<C>>>
+  const registry = addNodesMakeRegistry(elem, nodes);
+  return new Built(elem, registry) as Built<Tag, ProccessedNodesKeyed<N>>
 }

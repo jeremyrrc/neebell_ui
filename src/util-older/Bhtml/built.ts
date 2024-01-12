@@ -2,9 +2,10 @@ import {
   appendStringToString,
   appendArrayToArray,
   removeValuesInArray,
+  processToChild,
   isNothing,
 } from "./utils.js";
-import { Build, Id, ToNode, proccessToNode, addToNode } from "./builder.js";
+import { Build, Id, ToChild } from "./builder.js";
 
 type CanBeUndefinedGuard<Obj, K extends keyof Obj> =
   undefined extends Obj[K] ? K :
@@ -12,7 +13,7 @@ type CanBeUndefinedGuard<Obj, K extends keyof Obj> =
 
 export type Nothing = null | undefined;
 
-type ChildGuard<V extends ToNode, Acceptable> =
+type ChildGuard<V extends ToChild, Acceptable> =
   V extends Acceptable ? V :
   V extends (b: Build) => infer R ? R extends Acceptable ? V : never :
   never;
@@ -30,7 +31,7 @@ export type Tag = keyof HTMLElementTagNameMap;
 
 export class Built<T extends Tag = Tag, Children = {}> {
   readonly elem: HTMLElementTagNameMap[T];
-  registry: Map<any, any> | undefined;
+  private registry: Map<any, any> | undefined;
   private abortControllers: Map<string, AbortController> | null;
 
   constructor(
@@ -128,6 +129,14 @@ export class Built<T extends Tag = Tag, Children = {}> {
     return this;
   }
 
+  append(value: ToChild) {
+    if (value === undefined) return this;
+    const processed = processToChild(value);
+    const node = processed instanceof Built ? processed.elem : processed;
+    this.elem.appendChild(node);
+    return this;
+  }
+
   getItem<W extends keyof Id<Children>>(where: W) {
     return this.registry?.get(where) as Id<Children>[W];
   }
@@ -146,38 +155,32 @@ export class Built<T extends Tag = Tag, Children = {}> {
     return this;
   }
 
-  replace<W extends keyof Id<Children>, V extends ToNode>(where: W, value: ChildGuard<V, Id<Children>[W]>) {
+  removeChildren() {
+    while (this.elem.lastChild) this.elem.removeChild(this.elem.lastChild);
+  }
+
+  replace<W extends keyof Id<Children>, V extends ToChild>(where: W, value: ChildGuard<V, Id<Children>[W]>) {
     if (value === undefined) {
       // @ts-ignore because it can be undefined thanks to the ChildGuard.
       return this.remove(where);
     };
     const node = this.getNode(where);
     if (node === undefined) return this;
-    const [newNode, registryItem] = proccessToNode(value);
+    const processed = processToChild(value);
+    const newNode = processed instanceof Built ? processed.elem : processed;
     node.replaceWith(newNode);
-    this.registry?.set(where, registryItem);
-    return this;
-  }
-
-  addNodes(...toNodes: ToNode[]) {
-    for (const toNode of toNodes) {
-      addToNode(this.elem, toNode);
-    }
-    return this;
-  }
-
-  removeNodes() {
-    while (this.elem.lastChild) this.elem.removeChild(this.elem.lastChild);
+    this.registry?.set(where, processed);
     return this;
   }
 
   insert(
     ba: "before" | "after",
-    value: ToNode,
-    where?: keyof Id<Children>,
+    where: keyof Id<Children>,
+    value: ToChild,
   ) {
-    const refNode = where ? this.getNode(where) : this.elem;
-    const [newNode, _] = proccessToNode(value);
+    const refNode = this.getNode(where);
+    const processed = processToChild(value);
+    const newNode = processed instanceof Built ? processed.elem : processed;
     refNode[ba](newNode);
     return this;
   }

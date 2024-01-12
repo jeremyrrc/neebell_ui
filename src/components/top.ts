@@ -1,4 +1,4 @@
-import { Build, startAt } from "../util/Bhtml/builder.js";
+import { built, startAt } from "../util/Bhtml/builder.js";
 import type {
   signedInSideBarMenu,
   signedOutSideBarMenu,
@@ -16,80 +16,93 @@ import type {
 } from "./modals.js"
 import type { H2, } from "./base.js";
 
-const sideBar = (b: Build) => b
-  .tag("div")
-  .nodeArgs(
-    <["h2", undefined | H2]>["h2", undefined],
-    <[
-      "sidemenu",
-      | undefined
-      | typeof signedOutSideBarMenu
-      | typeof signedInSideBarMenu
-    ]>["sidemenu", undefined],
-    <[
-      "forums",
-      | undefined
-      | typeof sideBarForumsMenu
-    ]>["forums", undefined],
-  )
-  .build()
-  .className("flex flex-col space-y-3 p-3 h-full bg-neutral-800 overflow-auto")
+type SideBarHotSpots = {
+  "h2": ["h2",
+    | undefined
+    | H2
+  ],
+  "sidemenu": ["sidemenu",
+    | undefined
+    | typeof signedOutSideBarMenu
+    | typeof signedInSideBarMenu
+  ],
+  "forums": ["forums",
+    | undefined
+    | typeof sideBarForumsMenu
+  ]
 
-const tabList = (b: Build) => b
-  .tag("ul")
-  .build()
+}
+export const sideBar = built("div",
+  <SideBarHotSpots["h2"]>["h2",
+    undefined
+  ],
+  <SideBarHotSpots["sidemenu"]>["sidemenu",
+    undefined
+  ],
+  <SideBarHotSpots["forums"]>["forums",
+    undefined
+  ],
+)
+  .className("flex flex-none flex-col space-y-3 p-3 bg-neutral-800 overflow-auto")
+
+const tabList = built("ul")
   .className("flex space-x-2 mb-3")
 
-const main = (b: Build) => b
-  .tag("main")
-  .nodeArgs(
-    <["tabs", typeof tabList]>["tabs", tabList],
-    <[
-      "content",
-      | undefined
-      | "...Loading"
-      | typeof signInContent
-      | typeof createAccContent
-      | typeof createForumContent
-      | typeof chatContent
-    ]>["content", undefined]
-  )
-  .build()
-  .className("flex flex-col flex-1 p-3")
+type MainHotSpots = {
+  "tabs": ["tabs",
+    | typeof tabList
+  ],
+  "content": ["content",
+    | undefined
+    | "...Loading"
+    | typeof signInContent
+    | typeof createAccContent
+    | typeof createForumContent
+    | typeof chatContent
+  ]
+}
 
-export const sideBarAndMain = (b: Build) => b
-  .tag("div")
-  .nodeArgs(
-    <["sideBar", typeof sideBar]>["sideBar", sideBar],
-    <["main", typeof main]>["main", main],
-  )
-  .build()
-  .className("flex h-full")
+export const main = built("main",
+  <MainHotSpots["tabs"]>["tabs",
+    tabList
+  ],
+  <MainHotSpots["content"]>["content",
+    undefined
+  ]
+)
+  .className("flex grow flex-col p-3")
 
-export const modals = (b: Build) => b
-  .tag("div")
-  .nodeArgs(
-    <[
-      "modal",
-      | undefined
-      | typeof errorModal
-      | typeof editPermittedUsersModal
-    ]>["modal", undefined]
-  )
-  .build()
+
+export const sideBarAndMain = built("div",
+  sideBar,
+  main,
+)
+  .className("flex grow")
+
+type ModalsHotSpots = {
+  "modal": ["modal",
+    | undefined
+    | typeof errorModal
+    | typeof editPermittedUsersModal
+  ]
+}
+
+export const modals = built("div",
+  <ModalsHotSpots["modal"]>["modal",
+    undefined
+  ]
+)
   .className("fixed top-0 w-full h-full flex items-center justify-center bg-neutral-900/50 hidden")
 
-export const top = startAt(document.body, [
-  <["sideBarAndMain", typeof sideBarAndMain]>["sideBarAndMain", sideBarAndMain],
-  <["modals", typeof modals]>["modals", modals],
-] as const)
-  .export(function() {
-    const container = this.getItem("sideBarAndMain");
-    const main = container.getItem("main");
-    const sideBar = container.getItem("sideBar");
-    const modals = this.getItem("modals");
-    return { sideBar, main, modals };
-  })
+startAt(document.body, sideBarAndMain, modals)
+  .className("flex")
+  // .export(function() {
+  //   const container = this.getItem("sideBarAndMain");
+  //   const main = container.getItem("main");
+  //   const sideBar = container.getItem("sideBar");
+  //   const modals = this.getItem("modals");
+  //   return { sideBar, main, modals };
+  // })
 
 // ===========
 
@@ -147,7 +160,7 @@ export const top = startAt(document.body, [
 
 // ===========
 
-// import { Build, startAt, signal, Signal } from "./util/Bhtml/builder.js"
+// import { Build, startAt, signal, Signal } from "../util/Bhtml/builder.js"
 
 // const display = (count: Signal<number | undefined>) => (b: Build) => b
 //   .tag("div")

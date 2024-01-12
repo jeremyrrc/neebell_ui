@@ -1,9 +1,11 @@
 import { signal } from "./util/Bhtml/builder.js";
 import { changeModals } from "./components/modals.js";
 import { Bfetch, Error } from "./util/Bfetch/Bfetch.js";
-import { top } from "./components/top.js";
+import { main } from "./components/top.js";
 import { changeSideBar } from "./components/sideBar.js";
-import { changeMain, closeAllTabs } from "./components/main.js";
+import { changeMain } from "./components/main.js";
+import { Chat, Context } from "./components/chatContent.js";
+// import { ping } from "./util/eventsource/eventsource.js";
 
 export const dark = "bg-neutral-700 text-neutral-200";
 export const mid = "bg-neutral-400 text-neutral-900";
@@ -24,66 +26,39 @@ export type Forum = ForumListItem & {
   permitted_users: Array<string>
 }
 
-export const user = signal<string | undefined>(undefined);
+export const mainUser = signal<string | undefined>(undefined);
 export const currentForum = signal<Forum | undefined>(undefined);
 export const forumsMenuHeader = signal<"Owned" | "Permitted">("Owned");
 export const forumListSelection = signal<Array<ForumListItem>>([]);
-export const errorMessage = signal("Error");
+export const errorMessage = signal<string>("Error");
 
-const handleError = (err: Error) => {
+const showErrorMessage = (err: Error) => {
   // @ts-ignore
   errorMessage.value = err.message;
   changeModals("error");
 }
 
-export const bfetch = new Bfetch("http://127.0.0.1:8000")
-  .onError(handleError)
-  .keep("onError")
+export const bfetch = new Bfetch("http://127.0.0.1:8000");
+bfetch._jwt = localStorage.getItem("jwt");
+// ping();
 
-export const eventSources = new Map<string, EventSource>();
-
-type MessageEventHandler<T> = (m: MessageEvent<T>) => void;
-
-export function subscribe<T = any>(
-  uri: string,
-  handleMessage?: MessageEventHandler<T>,
-  handleOtherEvents?: Record<string, MessageEventHandler<T>>
-) {
-  // let retryTime = 1;
-  function connect(uri: string) {
-    const eventSource = new EventSource(bfetch._baseUrl + uri, { withCredentials: true });
-    eventSources.set(uri, eventSource);
-    if (handleMessage) eventSource.addEventListener("message", handleMessage);
-    for (const on in handleOtherEvents) {
-      eventSource.addEventListener(on, handleOtherEvents[on])
-    }
-    // eventSource.addEventListener("open", () => {
-    //   retryTime = 1;
-    // });
-    eventSource.addEventListener("error", () => {
-      eventSource.close();
-      // console.log(uri + " errored");
-      // eventSource.close();
-      // let timeout = retryTime;
-      // retryTime = Math.min(64, retryTime * 2);
-      // setTimeout(() => connect(uri), (() => timeout * 1000)());
-    });
-  }
-  connect(uri);
-};
+type LoadResponse = {
+  name: string
+}
 
 export const load = () => {
-  top.main.replace("content", "...Loading")
+  main.replace("content", "...Loading")
   bfetch
     .method("GET")
     .url("/user/load")
-    .catchErrorCode(401, () => {
+    .onError((e) => {
+      console.error(e)
       changeSideBar("signed out");
       changeMain("sign in");
-      return false;
     })
     .onSuccess(async (r, bf) => {
-      user.value = await r.text();
+      const lr = await r.json() as LoadResponse;
+      mainUser.value = lr.name;
       changeSideBar("signed in");
       changeMain("blank");
       bf.clear()
@@ -99,11 +74,17 @@ export const create_user = (e: Event) => {
     .method("POST")
     .sendAs("encoded")
     .params(e)
+    .onError(showErrorMessage)
     .onSuccess(() => {
       changeMain("sign in");
     })
     .send();
 };
+
+type SignInResponse = {
+  name: string,
+  token: string,
+}
 
 export const sign_in = (e: Event) => {
   e.preventDefault();
@@ -112,8 +93,12 @@ export const sign_in = (e: Event) => {
     .method("POST")
     .sendAs("encoded")
     .params(e)
+    .onError(showErrorMessage)
     .onSuccess(async (r, bf) => {
-      user.value = await r.text();
+      const sir = await r.json() as SignInResponse;
+      mainUser.value = sir.name;
+      bf._jwt = sir.token
+      localStorage.setItem("jwt", sir.token);
       changeSideBar("signed in");
       changeMain("blank");
       bf.clear()
@@ -123,12 +108,18 @@ export const sign_in = (e: Event) => {
 };
 
 export const sign_out = () => {
-  closeAllTabs();
+  // openTabs.closeAllTabs();
+  mainUser.value = undefined;
+  localStorage.removeItem("jwt");
+  changeSideBar("signed out");
+  changeMain("sign in");
   bfetch
     .method("GET")
     .url("/user/sign_out")
-    .onSuccess(() => {
-      user.value = undefined;
+    .onError(showErrorMessage)
+    .onSuccess((_, bf) => {
+      mainUser.value = undefined;
+      bf._jwt = null;
       changeSideBar("signed out");
       changeMain("sign in");
     })
@@ -142,6 +133,7 @@ export const create_forum = (e: Event) => {
     .method("POST")
     .sendAs("encoded")
     .params(e)
+    .onError(showErrorMessage)
     .onSuccess((_r, bf) => {
       bf.clear();
       forumListOwned();
@@ -153,6 +145,7 @@ export const forumListOwned = () => {
   bfetch
     .method("GET")
     .url("/forum/list-owned")
+    .onError(showErrorMessage)
     .onSuccess(async (r) => {
       forumsMenuHeader.value = "Owned";
       forumListSelection.value = (await r.json()) as Array<ForumListItem>
@@ -164,6 +157,7 @@ export const forumListPermitted = () => {
   bfetch
     .method("GET")
     .url("/forum/list-permitted")
+    .onError(showErrorMessage)
     .onSuccess(async (r) => {
       forumsMenuHeader.value = "Permitted";
       forumListSelection.value = (await r.json()) as Array<ForumListItem>
@@ -178,21 +172,118 @@ export const updatePermittedUsers = (e: Event) => {
     .url("/forum/update-users")
     .sendAs("encoded")
     .params(e)
+    .onError(showErrorMessage)
     .onSuccess(() => {
       changeModals("close");
     })
     .send()
 }
 
-export const sendMessage = (e: Event) => {
+export const sendMessage = (chat: Chat) => async (e: Event) => {
   e.preventDefault();
+  const params = bfetch.inputToParams(e);
+  if (!params) {
+    return;
+  }
+  const message = params.get("value") as string | null;
+  if (!message) {
+    return;
+  }
+
+  const aiMessage = checkAiMessage(message);
+
+  if (aiMessage) {
+    let [model, prompt] = aiMessage;
+    if (!prompt) prompt = "Continue the conversation as " + mainUser.value;
+    const data = {
+      model,
+      prompt,
+      messages: chat.context,
+    };
+
+    console.log(data);
+
+    const aiResponse = await promptAi(data, chat)
+    if (aiResponse) {
+      params.set("value", aiResponse)
+    }
+  }
+  console.log(params.get("value"));
+
   bfetch
     .method("POST")
     .url("/forum/message")
     .sendAs("encoded")
-    .params(e)
+    .params(params)
+    .onError(showErrorMessage)
+    .onSuccess((r) => {
+      console.log(r)
+    })
     .send();
 };
+
+type AiParameters = {
+  model: string,
+  prompt: string,
+  messages: Context[],
+  system?: string,
+}
+
+async function promptAi(data: AiParameters, chat: Chat) {
+  data.system = "You are " + mainUser.value + ".";
+  const r = await fetch("http://localhost:11434/api/chat", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }).then((r) => r.body?.getReader());
+
+  if (!r) {
+    console.log("no reader")
+    return;
+  }
+
+  const messageDiv = chat.addAIMessage(data.model);
+  await readBodyAsText(r, messageDiv.elem);
+  return messageDiv.elem.textContent;
+}
+
+async function readBodyAsText(reader: ReadableStreamDefaultReader<Uint8Array>, messageElem: HTMLDivElement) {
+  const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        console.log("no more data: ");
+        break
+      };
+      const str = decoder.decode(value);
+      const json = JSON.parse(str);
+      console.log(json);
+      console.log(json.message);
+      messageElem.textContent = messageElem.textContent + json.message.content;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function checkAiMessage(input: string): [string, string] | null {
+  const startArrowIndex = input.indexOf("<");
+
+  if (startArrowIndex === 0) {
+    const endArrowIndex = input.indexOf(">");
+
+    if (endArrowIndex !== -1) {
+      // @ts-ignore
+      const model = input.substring(startArrowIndex + 1, endArrowIndex);
+      const prompt = input.substring(endArrowIndex + 1);
+      return ["llama2:7b-chat", prompt];
+    }
+  }
+
+  return null;
+
+}
+
 
 load();
 

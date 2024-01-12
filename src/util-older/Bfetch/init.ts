@@ -28,48 +28,52 @@ interface InitPost {
   method: "POST";
   body: string | FormData | undefined;
   headers: Headers;
+  // credentials: RequestCredentials;
 }
 
 export const urlInitPost = (
   url: string,
-  token: string | null,
+  headers: Headers | null,
   sendAs: SendAs | null,
   data: Map<string, DataValue> | null
 ): [URL, InitPost] => {
-  const headers = new Headers();
-  if (token) headers.append("Authorization", "Bearer " + token)
+  const newHeaders = headers || new Headers();
+  let jwt = localStorage.getItem("jwt");
+  if (jwt) newHeaders.append("Authorization", "Bearer " + jwt);
   const newSendAs = sendAs || "json";
   let body;
   if (newSendAs === "json") {
-    headers.set("Content-Type", "application/json");
+    newHeaders.set("Content-Type", "application/json");
     body = toJson(data);
   } else if (newSendAs === "multipart") {
     body = toFormData(data);
   } else if (newSendAs === "encoded") {
-    headers.set("Content-Type", "application/x-www-form-urlencoded");
+    newHeaders.set("Content-Type", "application/x-www-form-urlencoded");
     body = encodeUrl(url, data).searchParams;
   }
   return [
     new URL(url),
-    { method: "POST", body, headers },
+    { method: "POST", body, headers: newHeaders },
   ];
 };
 
 interface initGet {
   method: "GET";
   headers: Headers;
+  // credentials: RequestCredentials;
 }
 
 export const urlInitGet = (
   url: string,
-  token: string | null,
+  headers: Headers | null,
   data: Map<string, DataValue> | null
 ): [URL, initGet] => {
-  const headers = new Headers();
-  if (token) headers.append("Authorization", "Bearer " + token)
+  const newHeaders = headers || new Headers();
+  let jwt = localStorage.getItem("jwt");
+  if (jwt) newHeaders.append("Authorization", "Bearer " + jwt);
   const newUrl = encodeUrl(url, data);
   return [
     newUrl,
-    { method: "GET", headers },
+    { method: "GET", headers: newHeaders },
   ];
 };

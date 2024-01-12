@@ -1,16 +1,14 @@
-import { Build } from "../util/Bhtml/builder.js";
-import { accent, light, dark, mid } from "../page.js";
+import { built, createEffect } from "../util/Bhtml/builder.js";
+import { accent, light } from "../page.js";
 import {
   create_user,
   sign_in,
   create_forum,
   updatePermittedUsers,
-  sendMessage,
-  user,
   currentForum,
 } from "../page.js";
-import { h2Build, inputBuild, submitButtonBuild } from "./base.js";
-export const namePattern = "^[A-Za-z0-9\-]+$";
+
+export const namePattern = "^([a-zA-Z0-9]*-*)+$";
 
 const reportValidity = (e: Event) =>
   (e.target as HTMLInputElement).reportValidity();
@@ -39,7 +37,7 @@ const passwordAttributes = {
 const confirmPasswordAttributes = {
   type: "password",
   title: "Rewrite password to confirm your password.",
-  name: "confirmPassword",
+  name: "confirm_password",
   minLength: "8",
   required: "true",
 }
@@ -54,40 +52,43 @@ const forumNameAttributes = {
   required: "true",
 }
 
-const lableInputNamePassword = (b: Build) => {
-  const nameInput = inputBuild(nameAttributes)(b)
+const inputClasses = "bg-neutral-200 text-neutral-600 rounded-sm p-1 border-2 border-neutral-600 invalid:border-rose-500 invalid:text-rose-500";
+
+const nameAndPasswordEntries = () => {
+  const nameInput = built("input").attributes(nameAttributes)
+    .className(inputClasses)
     .className("mt-1")
     .on("input", reportValidity)
-
-  const nameLable = b
-    .tag("label")
-    .nodeArgs(
-      "Name:",
-      nameInput
-    )
-    .build()
+  const nameEntry = built("label",
+    "Name:",
+    nameInput
+  )
     .className("flex flex-col")
 
-  const passInput = inputBuild(passwordAttributes)(b)
+  const passwordInput = built("input")
+    .attributes(passwordAttributes)
+    .className(inputClasses)
     .className("mt-1")
     .on("input", reportValidity)
-
-  const passLable = b
-    .tag("label")
-    .nodeArgs(
-      "Password",
-      <["input", typeof passInput]>["input", passInput]
-    )
-    .build()
+  type PasswordHotSpot = ["input",
+    | typeof passwordInput
+  ];
+  const passwordEntry = built("label",
+    "Password",
+    <PasswordHotSpot>["input", passwordInput]
+  )
     .className("flex flex-col");
 
-  return [nameLable, passLable] as const;
+  return [nameEntry, passwordEntry] as const;
 };
 
-export const createAccForm = (b: Build) => {
-  const [nameLable, passwordLable] = lableInputNamePassword(b);
+// create account
+export const createAccForm = () => {
+  const [nameLable, passwordLable] = nameAndPasswordEntries();
 
-  const confirmPassInput = inputBuild(confirmPasswordAttributes)(b)
+  const confirmPassInput = built("input")
+    .attributes(confirmPasswordAttributes)
+    .className(inputClasses)
     .className("mt-1")
     .on("input", () => {
       const passInput = passwordLable.getItem("input");
@@ -97,197 +98,193 @@ export const createAccForm = (b: Build) => {
       confirmPassInput.elem.reportValidity();
     });
 
-  const confirmPassLable = b
-    .tag("label")
-    .nodeArgs(
-      "Confirm password:",
-      confirmPassInput,
-    )
-    .build()
+  const confirmPassLable = built("label",
+    "Confirm password:",
+    confirmPassInput,
+  )
     .className("flex flex-col")
 
-  const submitInput = submitButtonBuild("Create Account")(b)
+  const submitInput = built("button",
+    "Create Account"
+  )
+    .attribute("type", "submit")
+    .className("cursor-pointer py-1 px-3 rounded-sm")
     .className(accent)
     .on("click", create_user);
 
-  return b
-    .tag("form")
-    .nodeArgs(
-      nameLable,
-      passwordLable,
-      confirmPassLable,
-      submitInput
-    )
-    .build()
+  return built("form",
+    nameLable,
+    passwordLable,
+    confirmPassLable,
+    submitInput
+  )
     .className("flex flex-col space-y-3 max-w-lg")
 };
 
-export const signInForm = (b: Build) => {
-  const [nameLableInput, passwordLableInput] = lableInputNamePassword(b);
-  const submitButton = submitButtonBuild("Sign in")(b)
+// sign in
+export const signInForm = () => {
+  const [nameLableInput, passwordLableInput] = nameAndPasswordEntries();
+
+  const submitButton = built("button",
+    "Sign in"
+  )
+    .attribute("type", "submit")
+    .className("cursor-pointer py-1 px-3 rounded-sm")
     .className(accent)
     .on("click", sign_in);
 
-  return b
-    .tag("form")
-    .nodeArgs(
-      nameLableInput,
-      passwordLableInput,
-      submitButton,
-    )
-    .build()
+  return built("form",
+    nameLableInput,
+    passwordLableInput,
+    submitButton,
+  )
     .className("flex flex-col space-y-3 max-w-lg")
 };
 
-export const createForumForm = (b: Build) => {
-  const nameInput = inputBuild(forumNameAttributes)(b)
+// create forum
+export const createForumForm = () => {
+  const nameInput = built("input")
+    .attributes(forumNameAttributes)
+    .className(inputClasses)
     .className("mt-1")
     .on("input", reportValidity);
 
-  const nameLable = b
-    .tag("label")
-    .nodeArgs(
-      "Forum name:",
-      nameInput,
-    )
-    .build()
+  const nameEntry = built("label",
+    "Forum name:",
+    nameInput,
+  )
     .className("flex flex-col")
 
-  const submitInput = submitButtonBuild("Create Forum")(b)
+  const submitButton = built("button",
+    "Create Forum"
+  )
+    .attribute("type", "submit")
+    .className("cursor-pointer py-1 px-3 rounded-sm")
     .className(accent)
     .on("click", create_forum);
 
-  return b
-    .tag("form")
-    .nodeArgs(
-      nameLable,
-      submitInput,
-    )
-    .build()
+  return built("form",
+    nameEntry,
+    submitButton,
+  )
     .className("flex flex-col space-y-3 max-w-lg")
 };
 
-export const updatePermittedUsersForm = (b: Build) => {
-  const forumIdHiddenInput = b
-    .tag("input")
-    .build()
+// update permitted users
+export const updatePermittedUsersForm = () => {
+  const forumIdHiddenInput = built("input")
     .attributes({
       type: "hidden",
       name: "forum_hex_id",
       value: currentForum.value!._id.$oid
     })
 
-  const h1 = h2Build("Update permitted users")(b)
+  createEffect(() => {
+    console.log("changing form")
+    let id = currentForum.value?._id.$oid;
+    if (!id) return
+    forumIdHiddenInput.elem.value = id;
+  })
+
+  const h1 = built("h2",
+    "Update permitted users"
+  )
     .className("text-center");
 
-  const input = b
-    .tag("textarea")
-    .build()
+  const textareaUpdateUsers = built("textarea",
+    <["users", string | undefined]>["users", currentForum.value?.permitted_users.join(", ")]
+  )
     .attribute("name", "permitted_users")
     .attribute("title", "Enter a list of valid usernames, separated by a comma. A valid username has no spaces. Only dashes and numbers")
-    .append(
-      currentForum.value!.permitted_users.join(", ")
-    )
     .className(light)
     .className("mt-1 p-1")
 
-  const lable = b
-    .tag("label")
-    .nodeArgs(
-      "Permitted users:",
-      input,
-    )
-    .build()
+  createEffect(() => {
+    const newUsers = currentForum.value?.permitted_users.join(", ");
+    textareaUpdateUsers.replace("users", newUsers)
+  })
+
+  const updateUsersEntry = built("label",
+    "Permitted users:",
+    textareaUpdateUsers,
+  )
     .className("mt-3 flex flex-col")
 
-  const submitButton = submitButtonBuild("Update")(b)
-    .className("mt-3")
+  const submitButton = built("button",
+    "Update"
+  )
+    .attribute("type", "submit")
+    .className("cursor-pointer py-1 px-3 rounded-sm")
     .className(accent)
     .on("click", updatePermittedUsers);
 
-  return b
-    .tag("form")
-    .nodeArgs(
-      forumIdHiddenInput,
-      h1,
-      lable,
-      submitButton,
-    )
-    .build()
+  return built("form",
+    forumIdHiddenInput,
+    h1,
+    updateUsersEntry,
+    submitButton,
+  )
     .className("flex flex-col")
 }
 
-export const sendMessageForm = (b: Build) => {
-  const userInputHidden = b
-    .tag("input")
-    .build()
-    .attributes({
-      type: "hidden",
-      name: "user",
-      value: user.value
-    });
+// // send message
+// export const sendMessageForm = () => {
+//   const userInputHidden = built("input")
+//     .attributes({
+//       type: "hidden",
+//       name: "user",
+//       value: mainUser.value
+//     });
 
-  const forumIdHiddenInput = b
-    .tag("input")
-    .build()
-    .attributes({
-      type: "hidden",
-      name: "forum_hex_id",
-      value: currentForum.value!._id.$oid
-    });
+//   const forumIdHiddenInput = built("input")
+//     .attributes({
+//       type: "hidden",
+//       name: "forum_hex_id",
+//       value: currentForum.value!._id.$oid
+//     });
 
-  const id = "messageInput";
-  const messageInput = b
-    .tag("textarea")
-    .build()
-    .id(id)
-    .attributes({
-      type: "text",
-      name: "value",
-      placeholder: "Send a message"
-    })
-    .className("w-full p-2 mx-1")
-    .className(dark)
-    .on("keypress", (e) => {
-      if (e.code === "Enter") {
-        e.preventDefault();
-        sendMessage(e);
-        const target = e.target as HTMLInputElement;
-        const form = target.form as HTMLFormElement;
-        form.reset();
-      }
-    });
+//   const id = "messageInput";
+//   const textareaMessage = built("textarea")
+//     .id(id)
+//     .attributes({
+//       type: "text",
+//       name: "value",
+//       placeholder: "Send a message"
+//     })
+//     .className("w-full p-2 mx-1")
+//     .className(dark)
+//     .on("keypress", (e) => {
+//       if (e.code === "Enter") {
+//         e.preventDefault();
+//         sendMessage(e);
+//         const target = e.target as HTMLInputElement;
+//         const form = target.form as HTMLFormElement;
+//         form.reset();
+//       }
+//     });
 
-  const messageLable = b
-    .tag("label")
-    .nodeArgs(
-      user.value,
-    )
-    .build()
-    .attribute("for", id)
-    .className("px-3 py-2 flex items-center")
-    .className(dark)
+//   const messageEntry = built("label",
+//     mainUser.value,
+//   )
+//     .attribute("for", id)
+//     .className("px-3 py-2 flex items-center")
+//     .className(accent)
 
-  const submitInput = b
-    .tag("input")
-    .build()
-    .attributes({
-      type: "submit",
-      value: "Send"
-    })
-    .className("px-3 py-2 rounded-sm cursor-pointer")
-    .className(mid)
-    .on("click", sendMessage);
+//   const submitButton = built("button")
+//     .attributes({
+//       type: "submit",
+//       value: "Send"
+//     })
+//     .className("px-3 py-2 rounded-sm cursor-pointer")
+//     .className(mid)
+//     .on("click", sendMessage);
 
-  return b
-    .tag("form")
-    .nodeArgs(
-      userInputHidden,
-      forumIdHiddenInput,
-      messageLable,
-      messageInput,
-      submitInput,
-    )
-    .build()
-    .className("flex")
-};
+//   return built("form",
+//     userInputHidden,
+//     forumIdHiddenInput,
+//     messageEntry,
+//     textareaMessage,
+//     submitButton,
+//   )
+//     .className("flex")
+// };

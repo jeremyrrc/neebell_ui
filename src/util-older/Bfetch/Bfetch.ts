@@ -12,28 +12,11 @@ type Input =
 
 export type DataValue = string | Blob;
 
-type Modify<T> = (v: T) => T;
-
-interface ServerError {
-  type: "server";
-  code: number;
-  response: Response;
+export interface Error {
+  type: "server" | "network";
+  code?: number;
   message: string;
 }
-
-interface ValidationError {
-  type: "validation";
-  errors: Record<string, Array<string>>;
-  message: string;
-}
-
-interface NetworkError {
-  type: "network";
-  error: unknown;
-  message: unknown;
-}
-
-export type Error = ServerError | ValidationError | NetworkError;
 
 type Handler<T, R> = (v: T, bfetch: Bfetch) => Promise<R> | R;
 export type ForwardHandler<T> = Handler<T, boolean>;
@@ -54,54 +37,30 @@ const appendMapToMap = <K, V>(
   return new Map([...prop, ...map]);
 };
 
-const forwarder = async <T>(
-  v: Array<ForwardHandler<T>> | null,
-  t: T,
-  bfetch: Bfetch
-): Promise<boolean> => {
-  if (!v) return true;
-  let forward = true;
-  for (const fn of v) {
-    forward = await fn(t, bfetch);
-    if (!forward) return false;
-  }
-  return true;
-};
-
-type CodeErrorHandlers = Map<number, Array<ForwardHandler<Response>>>;
-type NetworkErrorHandlers = Map<string, ForwardHandler<unknown>>;
-type ServerErrorHanlders = Map<string, ForwardHandler<Response>>;
-
 interface Props {
   url: string | null;
   method: Methods | null;
   sendAs: SendAs | null;
+  headers: Headers | null;
   params: Map<string, DataValue> | null;
-  catchCodeError: CodeErrorHandlers | null;
-  catchNetworkError: NetworkErrorHandlers | null;
-  catchServerError: ServerErrorHanlders | null;
   onSuccess: FinalHandler<Response> | null;
   onError: FinalHandler<Error> | null;
 }
 
 export class Bfetch {
-  _jwt: string | null;
   _baseUrl: string;
   _keep: Array<keyof Props> | null;
   props: Props;
 
   constructor(baseUrl: string) {
-    this._jwt = null;
     this._baseUrl = baseUrl;
     this._keep = null;
     this.props = {
       url: null,
       method: null,
       sendAs: null,
+      headers: null,
       params: null,
-      catchCodeError: null,
-      catchNetworkError: null,
-      catchServerError: null,
       onSuccess: null,
       onError: null,
     };
@@ -129,10 +88,7 @@ export class Bfetch {
       params = new Map(v.entries());
     } else if (!(v instanceof Map)) {
       params = new Map(Object.entries(v));
-    } else {
-      params = v;
     }
-
     if (!params || params.size === 0) return null;
     params = new Map(
       [...params].map(([key, value]) => {
@@ -171,70 +127,17 @@ export class Bfetch {
     return this;
   }
 
-  params(v: Input | Nothing | Modify<Map<string, DataValue>>) {
+  header(k: string, v: string) {
+    if (!this.props.headers) this.props.headers = new Headers();
+    this.props.headers.append(k, v);
+    return this;
+  }
+
+  params(v: Input | Nothing) {
     if (!v) return this;
-    if (typeof v === "function") {
-      let params = this.props.params || new Map<string, DataValue>();
-      params = v(params);
-      this.props.params = params.size !== 0 ? params : null;
-      return this;
-    }
     const params = this.inputToParams(v);
     if (!params) return this;
     this.props.params = appendMapToMap(this.props.params, params);
-    return this;
-  }
-
-  catchErrorCode(key: number, v: ForwardHandler<Response> | Nothing) {
-    if (!v) return this;
-    if (!this.props.catchCodeError) {
-      this.props.catchCodeError = new Map([[key, [v]]]);
-      return this;
-    }
-    const array = this.props.catchCodeError.get(key);
-    if (!array) {
-      this.props.catchCodeError.set(key, [v]);
-      return this;
-    }
-    this.props.catchCodeError.set(key, [...array, v]);
-    return this;
-  }
-
-  catchNetworkError(key: string, v: ForwardHandler<unknown> | Nothing) {
-    if (!v) return this;
-    if (!this.props.catchNetworkError) {
-      this.props.catchNetworkError = new Map([[key, v]]);
-    } else {
-      this.props.catchNetworkError.set(key, v);
-    }
-    return this;
-  }
-
-  catchServerError(key: string, v: ForwardHandler<Response> | Nothing) {
-    if (!v) return this;
-    if (!this.props.catchServerError) {
-      this.props.catchServerError = new Map([[key, v]]);
-    } else {
-      this.props.catchServerError.set(key, v);
-    }
-    return this;
-  }
-
-  removeErrorCode(key: number) {
-    if (!this.props.catchCodeError) return this;
-    this.props.catchCodeError.delete(key);
-    return this;
-  }
-
-  removeNetworkServerError(key: string) {
-    if (!this.props.catchNetworkError) return this;
-    this.props.catchNetworkError.delete(key);
-    return this;
-  }
-
-  removeCatchServerError(key: string) {
-    if (!this.props.catchServerError) return this;
-    this.props.catchServerError.delete(key);
     return this;
   }
 
@@ -243,7 +146,7 @@ export class Bfetch {
     return this;
   }
 
-  onError(v: FinalHandler<Error>) {
+  onError(v: (e: Error) => void) {
     this.props.onError = v;
     return this;
   }
@@ -281,70 +184,46 @@ export class Bfetch {
       url,
       method,
       params,
+      headers,
       sendAs,
       onSuccess,
-      catchCodeError,
-      catchServerError,
       onError,
-      catchNetworkError,
     } = this.props;
-    this.clear();
     const fullUrl = this._baseUrl + (url || "");
     const [finalUrl, init] =
       method === "GET"
-        ? urlInitGet(fullUrl, this._jwt, params)
-        : urlInitPost(fullUrl, this._jwt, sendAs, params);
+        ? urlInitGet(fullUrl, headers, params)
+        : urlInitPost(fullUrl, headers, sendAs, params);
 
     try {
       const response = await fetch(finalUrl, init);
-      if (response.status >= 200 && response.status <= 299) {
+      if (response.ok) {
         if (onSuccess) onSuccess(response, this);
+        this.clear();
         return response;
       }
+
       const message = await response.text();
 
-      const serverError: ServerError = {
+      const serverError: Error = {
         type: "server",
         code: response.status,
-        response,
-        message: message,
+        message,
       };
-
-      const codeErrorCatchers = catchCodeError
-        ? catchCodeError.get(response.status)
-        : undefined;
-      if (codeErrorCatchers) {
-        let forward = await forwarder(codeErrorCatchers, response, this);
-        if (forward) {
-          const serverErrorCatchers = catchServerError
-            ? Array.from(catchServerError.values())
-            : null;
-          forward = await forwarder(serverErrorCatchers, response, this);
-          if (forward && onError) await onError(serverError, this);
-        }
-        this.clear();
-        return Promise.reject(serverError);
-      }
 
       if (onError) onError(serverError, this);
+      this.clear();
       return Promise.reject(serverError);
-    } catch (error) {
-      console.error(error);
-      const message =
-        // @ts-ignore
-        "message" in error ? error.message : "Could not connect to server.";
-      const networkError: NetworkError = {
+    } catch (e) {
+
+      console.error(e);
+      const networkError: Error = {
         type: "network",
-        error,
-        message: message,
+        message: "Network error",
       };
 
-      let forward = true;
-      const networkErrorCatchers = catchNetworkError
-        ? Array.from(catchNetworkError.values())
-        : null;
-      forward = await forwarder(networkErrorCatchers, error, this);
-      if (forward && onError) await onError(networkError, this);
+      if (onError) onError(networkError, this);
+      this.clear();
       return Promise.reject(networkError);
     }
   }

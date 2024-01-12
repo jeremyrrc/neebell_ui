@@ -1,9 +1,10 @@
-import type { Build } from "../util/Bhtml/builder.js";
-import { light, mid } from "../page.js";
+import { Build, built } from "../util/Bhtml/builder.js";
+import { mid } from "../page.js";
 import { errorMessage } from "../page.js";
-import { top } from "./top.js";
+import { modals } from "./top.js";
 import { updatePermittedUsersForm } from "./forms.js";
-import { buttonBuild } from "./base.js";
+
+const buttonClasses = "cursor-pointer py-1 px-3 rounded-sm"
 
 type WhatModal =
   | "close"
@@ -12,52 +13,46 @@ type WhatModal =
 export const changeModals = (what: WhatModal) => {
   switch (what) {
     case "close":
-      top.modals.elem.classList.add("hidden");
-      top.modals.replace("modal", undefined)
+      modals.elem.classList.add("hidden");
+      modals.replace("modal", undefined)
       break;
     case "error":
-      top.modals.elem.classList.remove("hidden");
-      top.modals.replace("modal", errorModal)
+      modals.elem.classList.remove("hidden");
+      modals.replace("modal", errorModal)
       break;
     case "updatePermittedUsers":
-      top.modals.elem.classList.remove("hidden");
-      top.modals.replace("modal", editPermittedUsersModal)
+      modals.elem.classList.remove("hidden");
+      modals.replace("modal", editPermittedUsersModal)
       break;
   }
 }
 
-export const closeButton = (b: Build) => buttonBuild("Close")(b)
-  .className(light)
+export const closeButton = built("button",
+  "Close"
+)
+  .attribute("type", "button")
+  .className(buttonClasses)
+  .className("bg-neutral-300 text-neutral-900")
   .on("click", () => changeModals("close"))
 
 export const errorModal = (b: Build) => {
   return b.cache("errorModal", make);
 
   function make() {
-    return b
-      .tag("dialog")
-      .nodeArgs(
-        errorMessage,
-        closeButton
-      )
-      .build()
+    return built("dialog",
+      errorMessage,
+      closeButton
+    )
       .className("rounded-sm flex flex-col p-3 space-y-3")
       .className(mid)
   }
 }
 
-export const editPermittedUsersModal = (b: Build) => {
-  return b.cache("editPermittedUsersModal", make)
-
-  function make() {
-    return b
-      .tag("dialog")
-      .nodeArgs(
-        updatePermittedUsersForm,
-        closeButton
-      )
-      .build()
-      .className(mid)
-      .className("rounded-sm flex flex-col p-3 space-y-3")
-  }
+export const editPermittedUsersModal = () => {
+  return built("dialog",
+    updatePermittedUsersForm,
+    closeButton
+  )
+    .className(mid)
+    .className("rounded-sm flex flex-col p-3 space-y-3")
 }
